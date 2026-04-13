@@ -119,12 +119,8 @@ Special thanks to the open-source projects and communities that made this possib
 
 ## Support
 
-If this overlay saved your eco from total collapse, consider mass-producing a coffee for me — no villagers required, just Zelle: [3101ihs@gmail.com](mailto:3101ihs@gmail.com)
+If this overlay saved your eco from total collapse, consider mass-producing a coffee for me — no villagers required, just Zelle: [3101ihs@gmail.com](mailto:3101ihs@gmail.com) — **SamJ**
 
 ## License
 
 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — You are free to share and adapt this software, provided you give appropriate credit and do not use it for commercial purposes.
-
----
-
-Made by **SamJ**
