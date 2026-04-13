@@ -295,6 +295,62 @@ html, body {
     color: var(--text-primary);
 }
 
+.passive-src-equiv {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--accent);
+    opacity: 0.85;
+    margin-left: auto;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+
+.passive-src-detail {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 8px;
+}
+
+.passive-total-row {
+    margin-top: 4px;
+    padding: 3px 6px;
+    background: rgba(41, 224, 248, 0.06);
+    border: 1px solid rgba(41, 224, 248, 0.1);
+    border-radius: 3px;
+    font-size: 9px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.passive-total-row strong {
+    color: var(--accent);
+    font-size: 11px;
+}
+
+.passive-count-input {
+    width: 30px;
+    padding: 1px 2px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font);
+    text-align: center;
+    outline: none;
+}
+
+.passive-count-input:focus {
+    border-color: var(--accent);
+}
+
+.passive-count-input::-webkit-inner-spin-button,
+.passive-count-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 .remove-btn {
     width: 16px;
     height: 16px;
@@ -352,16 +408,32 @@ html, body {
 }
 
 /* ---- Villager Output ---- */
+.res-header-row {
+    display: flex;
+    align-items: center;
+    padding: 0 0 2px 0;
+    gap: 4px;
+    font-size: 8px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.res-h-label { width: 56px; }
+.res-h-need { flex: 1; text-align: right; padding-right: 2px; }
+.res-h-passive { width: 28px; text-align: center; color: var(--accent); }
+.res-h-have { width: 32px; text-align: center; }
+.res-h-diff { width: 30px; text-align: center; }
+
 .resource-row {
     display: flex;
     align-items: center;
-    padding: 3px 0;
-    gap: 8px;
+    padding: 2px 0;
+    gap: 4px;
 }
 
 .resource-icon {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     border-radius: 2px;
     flex-shrink: 0;
 }
@@ -372,14 +444,14 @@ html, body {
 .resource-icon.stone { background: var(--stone-color); }
 
 .resource-label {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-secondary);
-    width: 40px;
+    width: 34px;
 }
 
 .resource-bar-track {
     flex: 1;
-    height: 6px;
+    height: 5px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 3px;
     overflow: hidden;
@@ -397,9 +469,9 @@ html, body {
 .resource-bar.stone { background: var(--stone-color); }
 
 .resource-value {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    width: 35px;
+    width: 28px;
     text-align: right;
 }
 
@@ -407,6 +479,50 @@ html, body {
 .resource-value.wood { color: var(--wood-color); }
 .resource-value.gold { color: var(--gold-color); }
 .resource-value.stone { color: var(--stone-color); }
+
+/* Per-resource actual villager input */
+.res-actual {
+    width: 32px;
+    padding: 1px 2px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font);
+    text-align: center;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.res-actual:focus {
+    border-color: var(--accent);
+}
+
+.res-actual::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.res-actual::-webkit-inner-spin-button,
+.res-actual::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Per-resource diff indicator */
+.res-diff {
+    width: 30px;
+    font-size: 9px;
+    font-weight: 700;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.res-diff.surplus { color: #4caf50; }
+.res-diff.deficit { color: #ef5350; }
+.res-diff.balanced { color: var(--text-muted); }
 
 .total-row {
     display: flex;
@@ -427,6 +543,51 @@ html, body {
     font-size: 14px;
     font-weight: 700;
     color: var(--accent);
+}
+
+/* ---- Passive Income Villager Equivalent (in requirements) ---- */
+.res-passive {
+    width: 28px;
+    font-size: 9px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--accent);
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+/* ---- Passive Income Summary (in passive section) ---- */
+.passive-equiv-row {
+    margin-top: 6px;
+    padding: 4px 8px;
+    background: rgba(41, 224, 248, 0.06);
+    border: 1px solid rgba(41, 224, 248, 0.12);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.passive-equiv-row strong {
+    color: var(--accent);
+    font-size: 12px;
+}
+
+.pe-food { color: var(--food-color); }
+.pe-wood { color: var(--wood-color); }
+.pe-gold { color: var(--gold-color); }
+.pe-stone { color: var(--stone-color); }
+
+/* ---- Auto-Detect Status Bar ---- */
+#auto-detect-status {
+    display: none;
+    padding: 3px 10px;
+    font-size: 9px;
+    color: var(--accent);
+    background: rgba(41, 224, 248, 0.06);
+    border-bottom: 1px solid rgba(41, 224, 248, 0.15);
+    text-align: center;
+    letter-spacing: 0.3px;
 }
 
 /* ---- Settings Dropdown ---- */

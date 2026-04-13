@@ -116,6 +116,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const cb = document.getElementById('toggle-opponent-panel');
         if (cb) cb.checked = true;
     }
+    // Restore toggle states
+    const autoDetectCb = document.getElementById('toggle-auto-detect');
+    if (autoDetectCb) autoDetectCb.checked = _autoDetectEnabled;
+    const ocrCb = document.getElementById('toggle-ocr');
+    if (ocrCb) ocrCb.checked = _ocrEnabled;
+    const passiveAutoCb = document.getElementById('toggle-passive-auto');
+    if (passiveAutoCb) passiveAutoCb.checked = _passiveAutoEnabled;
+
+
     // Restore saved player name
     const savedName = loadSavedPlayerName();
     const nameInput = document.getElementById('player-name-input');
@@ -750,6 +759,239 @@ function renderLastGame(game, myProfileId, playerStats) {
     });
 }
 
+// ---- Auto-Detection (called from PyQt5 LogWatcher) ----
+
+// Map API civ names (snake_case) to our CIVILIZATIONS keys
+const API_CIV_MAP = {};
+(function buildCivMap() {
+    for (const [key, name] of Object.entries(CIVILIZATIONS)) {
+        if (key === 'RANDOM') continue;
+        // Map by key lowercase: "england" -> "ENGLAND"
+        API_CIV_MAP[key.toLowerCase()] = key;
+        // Map by display name normalized: "abbasid_dynasty" -> "ABBASID"
+        const normalized = name.toLowerCase().replace(/['\s]+/g, '_');
+        API_CIV_MAP[normalized] = key;
+    }
+    // Manual overrides for tricky names
+    API_CIV_MAP['english'] = 'ENGLAND';
+    API_CIV_MAP['holy_roman_empire'] = 'HRE';
+    API_CIV_MAP["jeanne_d'arc"] = 'JEANNE_D_ARC';
+    API_CIV_MAP['jeanne_darc'] = 'JEANNE_D_ARC';
+    API_CIV_MAP['order_of_the_dragon'] = 'DRAGON_ORDER';
+    API_CIV_MAP["zhu_xi's_legacy"] = 'ZHU_XIS_LEGACY';
+    API_CIV_MAP['zhu_xis_legacy'] = 'ZHU_XIS_LEGACY';
+})();
+
+function apiCivToKey(apiCivName) {
+    if (!apiCivName) return null;
+    const normalized = apiCivName.toLowerCase().replace(/['\s]+/g, '_');
+    return API_CIV_MAP[normalized] || null;
+}
+
+let _autoSteamId = null;
+let _autoSteamName = null;
+let _matchPollTimer = null;
+let _matchPollCount = 0;
+let _lastMatchStartedAt = null;
+let _autoDetectEnabled = localStorage.getItem('aoe4_auto_detect') !== 'false';
+
+// Called by PyQt5 when Steam ID is found in log
+function onSteamIdDetected(steamId, steamName) {
+    _autoSteamId = steamId;
+    _autoSteamName = steamName;
+    console.log(`[AutoDetect] Steam: ${steamName} (${steamId})`);
+
+    // Auto-fill player name if empty
+    const nameInput = document.getElementById('player-name-input');
+    if (nameInput && !nameInput.value.trim()) {
+        nameInput.value = steamName;
+        localStorage.setItem('aoe4_player_name', steamName);
+        searchPlayer(steamName);
+    }
+
+    // Show opponent panel automatically
+    const section = document.getElementById('opponent-section');
+    if (section && section.style.display === 'none') {
+        section.style.display = '';
+        localStorage.setItem('aoe4_show_opponent', 'true');
+        const cb = document.getElementById('toggle-opponent-panel');
+        if (cb) cb.checked = true;
+    }
+
+    // Show auto-detect status
+    _showAutoStatus('🔗 Connected: ' + steamName);
+}
+
+// Called by PyQt5 when [Match Flow] Start Match Command detected
+function onMatchDetected() {
+    if (!_autoDetectEnabled || !_autoSteamId) return;
+    console.log('[AutoDetect] Match started, polling for game data...');
+    _showAutoStatus('⏳ Match detected, loading...');
+    _matchPollCount = 0;
+    _lastMatchStartedAt = null;
+    // Start polling API every 10s for up to 2 minutes
+    _stopMatchPoll();
+    _matchPollTimer = setInterval(() => _pollForNewGame(), 10000);
+    // First poll after 15s (API has ~30-60s delay)
+    setTimeout(() => _pollForNewGame(), 15000);
+}
+
+// Called by PyQt5 when match ends (Disconnect)
+function onMatchEnded() {
+    if (!_autoDetectEnabled || !_autoSteamId) return;
+    console.log('[AutoDetect] Match ended, refreshing final results...');
+    _stopMatchPoll();
+    _showAutoStatus('🏁 Match ended, updating...');
+    // Refresh after short delay to get final results
+    setTimeout(() => {
+        const profileId = localStorage.getItem('aoe4_player_profile_id');
+        if (profileId) {
+            fetchLastGame(profileId);
+        }
+        _showAutoStatus('');
+    }, 5000);
+}
+
+async function _pollForNewGame() {
+    _matchPollCount++;
+    if (_matchPollCount > 12) { // 2 minutes max
+        _stopMatchPoll();
+        _showAutoStatus('⚠️ Timeout waiting for API data');
+        setTimeout(() => _showAutoStatus(''), 5000);
+        return;
+    }
+
+    try {
+        const res = await fetch(`${AOE4_API}/players/${_autoSteamId}/games?limit=1`);
+        const data = await res.json();
+        if (!data.games || data.games.length === 0) return;
+
+        const game = data.games[0];
+        const startedAt = game.started_at || game.updated_at;
+
+        // Check if this is a new game (started recently, within last 5 min)
+        if (startedAt) {
+            const gameTime = new Date(startedAt).getTime();
+            const now = Date.now();
+            const ageMs = now - gameTime;
+
+            // If game started more than 5 min ago and we already saw it, skip
+            if (_lastMatchStartedAt === startedAt && ageMs > 60000) return;
+
+            // If game is less than 5 min old, treat as current match
+            if (ageMs < 300000) {
+                _lastMatchStartedAt = startedAt;
+                _stopMatchPoll();
+                _applyGameData(game);
+                return;
+            }
+        }
+    } catch (e) {
+        console.log('[AutoDetect] Poll error:', e.message);
+    }
+}
+
+function _applyGameData(game) {
+    console.log('[AutoDetect] Game data received:', game.map);
+
+    // Find my player entry to get my civ
+    let myCiv = null;
+    let myProfileId = null;
+    if (game.teams) {
+        for (const team of game.teams) {
+            for (const entry of team) {
+                const p = entry.player || entry;
+                const steamMatch = p.profile_id == _autoSteamId ||
+                    String(p.profile_id) === localStorage.getItem('aoe4_player_profile_id');
+                if (steamMatch) {
+                    myCiv = p.civilization;
+                    myProfileId = p.profile_id;
+                    break;
+                }
+            }
+            if (myCiv) break;
+        }
+    }
+
+    // Auto-set civilization
+    if (myCiv) {
+        const civKey = apiCivToKey(myCiv);
+        if (civKey && civKey !== currentCiv) {
+            currentCiv = civKey;
+            const select = document.getElementById('civ-selector');
+            if (select) select.value = civKey;
+            onCivChange(civKey);
+            _showAutoStatus('🎮 ' + (CIVILIZATIONS[civKey] || myCiv) + ' — ' + (game.map || ''));
+        } else {
+            _showAutoStatus('🎮 ' + (game.map || 'Match started'));
+        }
+    }
+
+    // Store profile_id and fetch opponent data
+    if (myProfileId) {
+        localStorage.setItem('aoe4_player_profile_id', String(myProfileId));
+        fetchLastGame(myProfileId);
+    }
+
+    // Clear auto status after 10s
+    setTimeout(() => _showAutoStatus(''), 10000);
+}
+
+function _stopMatchPoll() {
+    if (_matchPollTimer) {
+        clearInterval(_matchPollTimer);
+        _matchPollTimer = null;
+    }
+}
+
+function _showAutoStatus(msg) {
+    let el = document.getElementById('auto-detect-status');
+    if (!el) {
+        // Create status element if it doesn't exist
+        const titleBar = document.getElementById('title-bar');
+        if (!titleBar) return;
+        el = document.createElement('div');
+        el.id = 'auto-detect-status';
+        titleBar.parentNode.insertBefore(el, titleBar.nextSibling);
+    }
+    el.textContent = msg;
+    el.style.display = msg ? '' : 'none';
+}
+
+function toggleAutoDetect() {
+    const cb = document.getElementById('toggle-auto-detect');
+    _autoDetectEnabled = cb ? cb.checked : !_autoDetectEnabled;
+    localStorage.setItem('aoe4_auto_detect', _autoDetectEnabled);
+    if (!_autoDetectEnabled) {
+        _stopMatchPoll();
+        _showAutoStatus('');
+    } else if (_autoSteamId) {
+        _showAutoStatus('🔗 Connected: ' + (_autoSteamName || _autoSteamId));
+    }
+}
+
+// ---- OCR Toggle ----
+let _ocrEnabled = localStorage.getItem('aoe4_ocr') === 'true';
+
+function toggleOCR() {
+    const cb = document.getElementById('toggle-ocr');
+    _ocrEnabled = cb ? cb.checked : !_ocrEnabled;
+    localStorage.setItem('aoe4_ocr', _ocrEnabled);
+    // Notify PyQt5 to start/stop OCR scanning
+    notifyPyQt('ocrToggle', _ocrEnabled);
+}
+
+// ---- Passive Auto-Detect Toggle ----
+let _passiveAutoEnabled = localStorage.getItem('aoe4_passive_auto') === 'true';
+
+function togglePassiveAuto() {
+    const cb = document.getElementById('toggle-passive-auto');
+    _passiveAutoEnabled = cb ? cb.checked : !_passiveAutoEnabled;
+    localStorage.setItem('aoe4_passive_auto', _passiveAutoEnabled);
+    // Notify PyQt5 to start/stop passive income detection
+    notifyPyQt('passiveAutoToggle', _passiveAutoEnabled);
+}
+
 // ---- Passive Income Sources ----
 function renderPassiveIncomeSources() {
     const sources = getCivPassiveIncomeSources(currentCiv);
@@ -763,19 +1005,101 @@ function renderPassiveIncomeSources() {
     }
 
     section.style.display = '';
+    const rates = gatheringRatesService.getGatheringRates(foodSource, activeGatheringMods, []);
+
+    let totalEquiv = 0;
+
     sources.forEach(src => {
         const row = document.createElement('div');
         row.className = 'selected-unit';
         const count = passiveIncomeSources[src.id] || 0;
+
+        // Calculate per-source total and per-unit villager equivalent
+        let srcEquiv = 0;
+        let unitEquiv = 0;
+        if (count > 0) {
+            src.modifiers.forEach(modId => {
+                const mod = ALL_PASSIVE_INCOME_MODIFIERS[modId];
+                if (!mod) return;
+                if (mod.food && rates.food > 0) srcEquiv += (mod.food * count) / rates.food;
+                if (mod.wood && rates.wood > 0) srcEquiv += (mod.wood * count) / rates.wood;
+                if (mod.gold && rates.gold > 0) srcEquiv += (mod.gold * count) / rates.gold;
+                if (mod.stone && rates.stone > 0) srcEquiv += (mod.stone * count) / rates.stone;
+            });
+            unitEquiv = srcEquiv / count;
+            totalEquiv += srcEquiv;
+        }
+
+        // Show per-unit equiv (always per-unit, with total when count > 1)
+        let equivStr = '';
+        if (count > 0 && unitEquiv >= 0.05) {
+            equivStr = count > 1
+                ? `<span class="passive-src-equiv"><strong>${srcEquiv.toFixed(1)}v</strong> <span class="passive-src-detail">${unitEquiv.toFixed(1)}v × ${count}</span></span>`
+                : `<span class="passive-src-equiv"><strong>${unitEquiv.toFixed(1)}v</strong></span>`;
+        }
+
         row.innerHTML = `
             <span class="unit-name">${src.label}</span>
+            ${equivStr}
             <div class="counter-controls">
                 <button onclick="changePassiveIncomeCount('${src.id}', -1)">-</button>
-                <span class="count">${count}</span>
+                <input type="number" class="passive-count-input" value="${count}" min="0" max="99"
+                    onchange="setPassiveIncomeCount('${src.id}', this.value)"
+                    oninput="setPassiveIncomeCount('${src.id}', this.value)">
                 <button onclick="changePassiveIncomeCount('${src.id}', 1)">+</button>
             </div>
         `;
         container.appendChild(row);
+    });
+
+    // Show total passive villager equivalent
+    if (totalEquiv >= 0.1) {
+        const totalRow = document.createElement('div');
+        totalRow.className = 'passive-total-row';
+        const equiv = getPassiveVillagerEquiv();
+        let parts = [];
+        if (equiv.food >= 0.1) parts.push(`<span class="pe-food">${equiv.food.toFixed(1)}F</span>`);
+        if (equiv.wood >= 0.1) parts.push(`<span class="pe-wood">${equiv.wood.toFixed(1)}W</span>`);
+        if (equiv.gold >= 0.1) parts.push(`<span class="pe-gold">${equiv.gold.toFixed(1)}G</span>`);
+        if (equiv.stone >= 0.1) parts.push(`<span class="pe-stone">${equiv.stone.toFixed(1)}S</span>`);
+        totalRow.innerHTML = `Total ≈ <strong>${totalEquiv.toFixed(1)}</strong>v ${parts.join(' ')}`;
+        container.appendChild(totalRow);
+    }
+
+    // Also update the passive column in requirements
+    updatePassiveColumn();
+}
+
+function getPassiveVillagerEquiv() {
+    const income = getPassiveIncome();
+    const rates = gatheringRatesService.getGatheringRates(foodSource, activeGatheringMods, []);
+    return {
+        food:  rates.food > 0  ? income.food / rates.food   : 0,
+        wood:  rates.wood > 0  ? income.wood / rates.wood   : 0,
+        gold:  rates.gold > 0  ? income.gold / rates.gold   : 0,
+        stone: rates.stone > 0 ? income.stone / rates.stone : 0
+    };
+}
+
+function updatePassiveColumn() {
+    const equiv = getPassiveVillagerEquiv();
+    const total = equiv.food + equiv.wood + equiv.gold + equiv.stone;
+    const hasPassive = total > 0.05;
+
+    // Show/hide the passive column header
+    const header = document.getElementById('res-h-passive');
+    if (header) header.style.display = hasPassive ? '' : 'none';
+
+    ['food', 'wood', 'gold', 'stone'].forEach(res => {
+        const el = document.getElementById(`passive-${res}`);
+        if (!el) return;
+        if (!hasPassive) {
+            el.style.display = 'none';
+            return;
+        }
+        el.style.display = '';
+        const v = equiv[res];
+        el.textContent = v >= 0.05 ? v.toFixed(1) : '—';
     });
 }
 
@@ -783,6 +1107,14 @@ function changePassiveIncomeCount(sourceId, delta) {
     passiveIncomeSources[sourceId] = Math.max(0, (passiveIncomeSources[sourceId] || 0) + delta);
     renderPassiveIncomeSources();
     recalculate();
+}
+
+function setPassiveIncomeCount(sourceId, value) {
+    const num = parseInt(value);
+    passiveIncomeSources[sourceId] = isNaN(num) ? 0 : Math.max(0, num);
+    // Don't re-render (would lose focus), just recalculate
+    recalculate();
+    updatePassiveColumn();
 }
 
 function getPassiveIncome() {
@@ -833,6 +1165,9 @@ function recalculate() {
     updateDisplay(result);
 }
 
+// Store last calculated requirements for allocation
+let _lastReq = { food: 0, wood: 0, gold: 0, stone: 0 };
+
 function updateDisplay(result) {
     const f = Math.max(0, result.foodVillagers);
     const w = Math.max(0, result.woodVillagers);
@@ -840,6 +1175,8 @@ function updateDisplay(result) {
     const s = Math.max(0, result.stoneVillagers);
     const total = f + w + g + s;
     const maxVal = Math.max(f, w, g, s, 1);
+
+    _lastReq = { food: f, wood: w, gold: g, stone: s };
 
     document.getElementById('val-food').textContent = f.toFixed(1);
     document.getElementById('val-wood').textContent = w.toFixed(1);
@@ -851,4 +1188,41 @@ function updateDisplay(result) {
     document.getElementById('bar-wood').style.width = (w / maxVal * 100) + '%';
     document.getElementById('bar-gold').style.width = (g / maxVal * 100) + '%';
     document.getElementById('bar-stone').style.width = (s / maxVal * 100) + '%';
+
+    updatePassiveColumn();
+    updatePerResourceDiff();
+}
+
+function onActualVillChange() {
+    updatePerResourceDiff();
+}
+
+function updatePerResourceDiff() {
+    const resources = ['food', 'wood', 'gold', 'stone'];
+    resources.forEach(res => {
+        const input = document.getElementById(`actual-${res}`);
+        const diffEl = document.getElementById(`diff-${res}`);
+        if (!input || !diffEl) return;
+
+        const actual = parseInt(input.value);
+        const needed = _lastReq[res] || 0;
+
+        if (isNaN(actual) || input.value === '') {
+            diffEl.textContent = '';
+            diffEl.className = 'res-diff';
+            return;
+        }
+
+        const diff = actual - needed;
+        if (Math.abs(diff) < 0.3) {
+            diffEl.textContent = '✓';
+            diffEl.className = 'res-diff balanced';
+        } else if (diff > 0) {
+            diffEl.textContent = '+' + Math.round(diff);
+            diffEl.className = 'res-diff surplus';
+        } else {
+            diffEl.textContent = Math.round(diff);
+            diffEl.className = 'res-diff deficit';
+        }
+    });
 }

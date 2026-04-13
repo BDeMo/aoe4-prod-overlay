@@ -35,6 +35,24 @@
                         Show opponent info panel
                     </label>
                 </div>
+                <div class="setting-row">
+                    <label>
+                        <input type="checkbox" id="toggle-auto-detect" onchange="toggleAutoDetect()" checked>
+                        Auto-detect match (log watcher)
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <label>
+                        <input type="checkbox" id="toggle-ocr" onchange="toggleOCR()">
+                        Screen OCR (experimental)
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <label>
+                        <input type="checkbox" id="toggle-passive-auto" onchange="togglePassiveAuto()">
+                        Auto-detect passive income
+                    </label>
+                </div>
 
                 <div class="subsection-label">Data</div>
                 <div class="setting-row">
@@ -49,29 +67,48 @@
             <div class="section">
                 <div class="section-label">Villager Requirements</div>
                 <div id="villager-output">
+                    <div class="res-header-row">
+                        <span class="res-h-label"></span>
+                        <span class="res-h-need">Need</span>
+                        <span class="res-h-passive" id="res-h-passive" style="display:none">Pas</span>
+                        <span class="res-h-have">Have</span>
+                        <span class="res-h-diff">±</span>
+                    </div>
                     <div class="resource-row">
                         <div class="resource-icon food"></div>
                         <span class="resource-label">Food</span>
                         <div class="resource-bar-track"><div class="resource-bar food" id="bar-food" style="width:0%"></div></div>
                         <span class="resource-value food" id="val-food">0.0</span>
+                        <span class="res-passive" id="passive-food" style="display:none"></span>
+                        <input type="number" class="res-actual" id="actual-food" min="0" max="99" placeholder="—" oninput="onActualVillChange()">
+                        <span class="res-diff" id="diff-food"></span>
                     </div>
                     <div class="resource-row">
                         <div class="resource-icon wood"></div>
                         <span class="resource-label">Wood</span>
                         <div class="resource-bar-track"><div class="resource-bar wood" id="bar-wood" style="width:0%"></div></div>
                         <span class="resource-value wood" id="val-wood">0.0</span>
+                        <span class="res-passive" id="passive-wood" style="display:none"></span>
+                        <input type="number" class="res-actual" id="actual-wood" min="0" max="99" placeholder="—" oninput="onActualVillChange()">
+                        <span class="res-diff" id="diff-wood"></span>
                     </div>
                     <div class="resource-row">
                         <div class="resource-icon gold"></div>
                         <span class="resource-label">Gold</span>
                         <div class="resource-bar-track"><div class="resource-bar gold" id="bar-gold" style="width:0%"></div></div>
                         <span class="resource-value gold" id="val-gold">0.0</span>
+                        <span class="res-passive" id="passive-gold" style="display:none"></span>
+                        <input type="number" class="res-actual" id="actual-gold" min="0" max="99" placeholder="—" oninput="onActualVillChange()">
+                        <span class="res-diff" id="diff-gold"></span>
                     </div>
                     <div class="resource-row">
                         <div class="resource-icon stone"></div>
                         <span class="resource-label">Stone</span>
                         <div class="resource-bar-track"><div class="resource-bar stone" id="bar-stone" style="width:0%"></div></div>
                         <span class="resource-value stone" id="val-stone">0.0</span>
+                        <span class="res-passive" id="passive-stone" style="display:none"></span>
+                        <input type="number" class="res-actual" id="actual-stone" min="0" max="99" placeholder="—" oninput="onActualVillChange()">
+                        <span class="res-diff" id="diff-stone"></span>
                     </div>
                     <div class="total-row">
                         <span class="total-label">Total Villagers</span>
