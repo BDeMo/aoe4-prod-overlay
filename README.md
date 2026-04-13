@@ -111,6 +111,10 @@ All shortcuts are customizable in Settings.
 - **Vanilla JavaScript** — Calculator logic and UI (no build step)
 - **PyInstaller** — Standalone executable packaging
 
+## Support
+
+If you find this tool useful, buy me a coffee via Zelle: **mymail**
+
 ## License
 
 MIT
