@@ -117,4 +117,4 @@ If you find this tool useful, buy me a coffee via Zelle: **mymail**
 
 ## License
 
-All Rights Reserved. This software is proprietary. You may not copy, modify, distribute, or use this software without explicit written permission from the author.
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — You are free to share and adapt this software, provided you give appropriate credit and do not use it for commercial purposes.
