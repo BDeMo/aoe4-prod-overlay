@@ -134,6 +134,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ---- Font scaling based on window width ----
+const BASE_WIDTH = 340;
+const BASE_FONT = 12;
+const MIN_FONT = 9;
+const MAX_FONT = 18;
+
+function onWindowResize(w, h) {
+    const scale = w / BASE_WIDTH;
+    const clampedScale = Math.min(1.6, Math.max(0.7, scale));
+    document.getElementById('overlay-panel').style.zoom = clampedScale;
+}
+
 function initKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
         for (const [actionId, hk] of Object.entries(hotkeys)) {
@@ -476,6 +488,18 @@ function changeUnitCount(unitId, delta) {
     recalculate();
 }
 
+function setUnitCount(unitId, value) {
+    const count = parseInt(value);
+    if (isNaN(count) || count <= 0) {
+        delete selectedUnits[unitId];
+    } else {
+        selectedUnits[unitId] = count;
+    }
+    renderUnitGrid();
+    renderSelectedUnits();
+    recalculate();
+}
+
 // ---- Selected Units Display ----
 function renderSelectedUnits() {
     const container = document.getElementById('selected-units');
@@ -505,7 +529,9 @@ function renderSelectedUnits() {
             <span class="unit-name">${unit.name}</span>
             <div class="counter-controls">
                 <button onclick="changeUnitCount('${unitId}', -1)">-</button>
-                <span class="count">${count}</span>
+                <input type="number" class="queue-count-input" value="${count}" min="1" max="99"
+                    onblur="setUnitCount('${unitId}', this.value)"
+                    onkeydown="if(event.key==='Enter')this.blur()">
                 <button onclick="changeUnitCount('${unitId}', 1)">+</button>
             </div>
             <button class="remove-btn" onclick="removeUnit('${unitId}')" title="Remove">&times;</button>

@@ -162,7 +162,8 @@ class OverlayWindow(QMainWindow):
         x = screen.width() - width - 20
         y = 20
         self.setGeometry(x, y, width, self.FULL_HEIGHT)
-        self.setMinimumSize(280, 120)
+        self.setMinimumSize(240, 120)
+        self.setMaximumSize(600, 1200)
 
         self.web_view = QWebEngineView(self)
         page = OverlayWebPage(self.web_view)
@@ -183,6 +184,8 @@ class OverlayWindow(QMainWindow):
 
         self.setCentralWidget(self.web_view)
         self._drag_pos = None
+        self._resize_edge = None
+        self._resize_margin = 6
 
     def _on_page_loaded(self, ok):
         """Called when the web page finishes loading."""
@@ -335,6 +338,79 @@ class OverlayWindow(QMainWindow):
     def set_opacity(self, level):
         self.opacity_level = level
         self.setWindowOpacity(level)
+
+    # ---- Edge-drag resize for frameless window ----
+    def _edge_at(self, pos):
+        """Return which edge(s) the mouse is near, e.g. 'right', 'bottom', 'bottom-right'."""
+        m = self._resize_margin
+        rect = self.rect()
+        edges = []
+        if pos.x() <= m:
+            edges.append('left')
+        elif pos.x() >= rect.width() - m:
+            edges.append('right')
+        if pos.y() >= rect.height() - m:
+            edges.append('bottom')
+        return '-'.join(edges) if edges else None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            edge = self._edge_at(event.pos())
+            if edge:
+                self._resize_edge = edge
+                self._resize_start_pos = event.globalPos()
+                self._resize_start_geo = self.geometry()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._resize_edge and event.buttons() & Qt.LeftButton:
+            delta = event.globalPos() - self._resize_start_pos
+            geo = self._resize_start_geo
+            new_geo = self.geometry()
+            edge = self._resize_edge
+            if 'right' in edge:
+                new_w = max(self.minimumWidth(), geo.width() + delta.x())
+                new_geo.setWidth(min(new_w, self.maximumWidth()))
+            if 'left' in edge:
+                new_w = max(self.minimumWidth(), geo.width() - delta.x())
+                new_w = min(new_w, self.maximumWidth())
+                new_geo.setLeft(geo.right() - new_w)
+                new_geo.setWidth(new_w)
+            if 'bottom' in edge:
+                new_h = max(self.minimumHeight(), geo.height() + delta.y())
+                new_geo.setHeight(min(new_h, self.maximumHeight()))
+            self.setGeometry(new_geo)
+            event.accept()
+            return
+        else:
+            # Update cursor shape on hover
+            edge = self._edge_at(event.pos())
+            if edge in ('right', 'left'):
+                self.setCursor(Qt.SizeHorCursor)
+            elif edge == 'bottom':
+                self.setCursor(Qt.SizeVerCursor)
+            elif edge in ('bottom-right', 'bottom-left'):
+                self.setCursor(Qt.SizeFDiagCursor if 'left' not in edge else Qt.SizeBDiagCursor)
+            else:
+                self.unsetCursor()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._resize_edge:
+            self._resize_edge = None
+            self.unsetCursor()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = event.size().width()
+        h = event.size().height()
+        if self._page_ready:
+            self.web_view.page().runJavaScript(f"onWindowResize({w}, {h});")
 
     def closeEvent(self, event):
         if self.log_watcher:
