@@ -20,9 +20,9 @@ except ImportError:
 CONFIG_DIR = os.path.expanduser(r"~\Documents\My Games\Age of Empires IV")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "overlay_ocr_config.json")
 
-# Capture region size around cursor
-CAPTURE_W = 60
-CAPTURE_H = 28
+# Capture region size around cursor — needs to be wide enough for 2-digit numbers
+CAPTURE_W = 120
+CAPTURE_H = 44
 
 # Digit matching threshold
 DIGIT_THRESHOLD = 0.55

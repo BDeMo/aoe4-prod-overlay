@@ -120,8 +120,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Restore toggle states
     const autoDetectCb = document.getElementById('toggle-auto-detect');
     if (autoDetectCb) autoDetectCb.checked = _autoDetectEnabled;
-    const ocrCb = document.getElementById('toggle-ocr');
-    if (ocrCb) ocrCb.checked = _ocrEnabled;
+    const ocrAutoCb = document.getElementById('toggle-ocr-auto');
+    if (ocrAutoCb) ocrAutoCb.checked = _ocrAutoEnabled;
+    const ocrIntervalSel = document.getElementById('ocr-interval');
+    if (ocrIntervalSel) ocrIntervalSel.value = _ocrInterval;
     const passiveAutoCb = document.getElementById('toggle-passive-auto');
     if (passiveAutoCb) passiveAutoCb.checked = _passiveAutoEnabled;
 
@@ -136,6 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Title bar drag to move window
     initTitleBarDrag();
+
+    // Send initial OCR auto-refresh state to Python
+    if (_ocrAutoEnabled) {
+        notifyPyQt('ocrAutoToggle', true);
+        notifyPyQt('ocrSetInterval', _ocrInterval);
+    }
 });
 
 // ---- Font scaling based on window width ----
@@ -1106,17 +1114,6 @@ function toggleAutoDetect() {
     }
 }
 
-// ---- OCR Toggle ----
-let _ocrEnabled = localStorage.getItem('aoe4_ocr') === 'true';
-
-function toggleOCR() {
-    const cb = document.getElementById('toggle-ocr');
-    _ocrEnabled = cb ? cb.checked : !_ocrEnabled;
-    localStorage.setItem('aoe4_ocr', _ocrEnabled);
-    // Notify PyQt5 to start/stop OCR scanning
-    notifyPyQt('ocrToggle', _ocrEnabled);
-}
-
 // ---- Passive Auto-Detect Toggle ----
 let _passiveAutoEnabled = localStorage.getItem('aoe4_passive_auto') === 'true';
 
@@ -1137,6 +1134,22 @@ function ocrPick(resource) {
 function ocrScanAll() {
     if (typeof IS_WEB !== 'undefined' && IS_WEB) return;
     notifyPyQt('ocrScanAll', true);
+}
+
+let _ocrAutoEnabled = localStorage.getItem('aoe4_ocr_auto') === 'true';
+let _ocrInterval = parseInt(localStorage.getItem('aoe4_ocr_interval')) || 1000;
+
+function toggleOCRAutoRefresh() {
+    const cb = document.getElementById('toggle-ocr-auto');
+    _ocrAutoEnabled = cb ? cb.checked : !_ocrAutoEnabled;
+    localStorage.setItem('aoe4_ocr_auto', _ocrAutoEnabled);
+    notifyPyQt('ocrAutoToggle', _ocrAutoEnabled);
+}
+
+function setOCRInterval(ms) {
+    _ocrInterval = parseInt(ms) || 1000;
+    localStorage.setItem('aoe4_ocr_interval', _ocrInterval);
+    notifyPyQt('ocrSetInterval', _ocrInterval);
 }
 
 function onOCRResult(resource, value, confidence, previewB64) {

@@ -202,6 +202,8 @@ class OverlayWindow(QMainWindow):
         self._pending_js = []
         self.scanner = ScreenScanner()
         self._pick_overlay = None
+        self._ocr_timer = None
+        self._ocr_interval = 1000  # ms, default 1s
         self.init_ui()
         self.init_tray()
         self._start_action_polling()
@@ -442,6 +444,14 @@ class OverlayWindow(QMainWindow):
             self._start_ocr_pick(resource)
         elif act == 'ocrScanAll':
             self._ocr_scan_all()
+        elif act == 'ocrAutoToggle':
+            enabled = action.get('data', False)
+            self._toggle_ocr_auto(enabled)
+        elif act == 'ocrSetInterval':
+            ms = int(action.get('data', 1000))
+            self._ocr_interval = max(200, min(5000, ms))
+            if self._ocr_timer and self._ocr_timer.isActive():
+                self._ocr_timer.setInterval(self._ocr_interval)
 
     def _apply_compact_mode(self, compact):
         self._compact_mode = compact
@@ -513,6 +523,9 @@ class OverlayWindow(QMainWindow):
         self._run_js(
             f"onOCRResult('{resource}', {val_js}, {conf:.2f}, {preview_js});"
         )
+        # If auto-refresh timer is active, ensure it keeps running with new positions
+        if self._ocr_timer and self._ocr_timer.isActive():
+            pass  # Already running, new position will be picked up next tick
 
     def _ocr_scan_all(self):
         """Read all saved positions at once."""
@@ -520,6 +533,17 @@ class OverlayWindow(QMainWindow):
         for res, (val, conf) in results.items():
             val_js = val if val is not None else 'null'
             self._run_js(f"onOCRResult('{res}', {val_js}, {conf:.2f}, null);")
+
+    def _toggle_ocr_auto(self, enabled):
+        """Start or stop the auto-refresh OCR timer."""
+        if enabled and self.scanner.has_saved_positions:
+            if not self._ocr_timer:
+                self._ocr_timer = QTimer(self)
+                self._ocr_timer.timeout.connect(self._ocr_scan_all)
+            self._ocr_timer.start(self._ocr_interval)
+        else:
+            if self._ocr_timer:
+                self._ocr_timer.stop()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

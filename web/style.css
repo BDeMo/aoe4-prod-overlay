@@ -596,6 +596,16 @@ html, body {
 }
 .ocr-scan-all-btn:hover { opacity: 1; color: var(--accent); }
 
+.ocr-interval-select {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: 3px;
+    font-size: 10px;
+    padding: 1px 4px;
+    margin-left: 6px;
+}
+
 .total-row {
     display: flex;
     align-items: center;
