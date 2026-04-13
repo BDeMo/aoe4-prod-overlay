@@ -117,4 +117,4 @@ If you find this tool useful, buy me a coffee via Zelle: **mymail**
 
 ## License
 
-MIT
+All Rights Reserved. This software is proprietary. You may not copy, modify, distribute, or use this software without explicit written permission from the author.
