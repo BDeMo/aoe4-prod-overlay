@@ -10,7 +10,7 @@ import re
 import time
 from PyQt5.QtWidgets import QApplication, QMainWindow, QSystemTrayIcon, QMenu, QAction, QWidget
 from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal, QPoint
-from PyQt5.QtGui import QIcon, QColor, QCursor, QPainter, QPen, QFont
+from PyQt5.QtGui import QIcon, QColor, QCursor, QPainter, QPen, QFont, QPixmap
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings
 
 from screen_scanner import ScreenScanner
@@ -269,8 +269,27 @@ class OverlayWindow(QMainWindow):
         else:
             self._pending_js.append(js)
 
+    @staticmethod
+    def _create_tray_icon():
+        """Generate a small AoE4-themed tray icon programmatically."""
+        px = QPixmap(32, 32)
+        px.fill(QColor(0, 0, 0, 0))
+        p = QPainter(px)
+        p.setRenderHint(QPainter.Antialiasing)
+        # Dark background circle
+        p.setBrush(QColor(15, 15, 22, 220))
+        p.setPen(QPen(QColor(41, 224, 248, 200), 2))
+        p.drawEllipse(2, 2, 28, 28)
+        # "IV" text
+        p.setPen(QColor(41, 224, 248))
+        p.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        p.drawText(px.rect(), Qt.AlignCenter, "IV")
+        p.end()
+        return QIcon(px)
+
     def init_tray(self):
         self.tray = QSystemTrayIcon(self)
+        self.tray.setIcon(self._create_tray_icon())
         self.tray.setToolTip("AoE4 Production Overlay")
         self.tray.activated.connect(self._on_tray_activated)
 
@@ -521,6 +540,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     window = OverlayWindow()
+    app.setWindowIcon(window._create_tray_icon())
     window.show()
 
     sys.exit(app.exec_())
