@@ -8,10 +8,12 @@ import sys
 import os
 import re
 import time
-from PyQt5.QtWidgets import QApplication, QMainWindow, QSystemTrayIcon, QMenu, QAction
-from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal
-from PyQt5.QtGui import QIcon, QColor
+from PyQt5.QtWidgets import QApplication, QMainWindow, QSystemTrayIcon, QMenu, QAction, QWidget
+from PyQt5.QtCore import Qt, QUrl, QTimer, QThread, pyqtSignal, QPoint
+from PyQt5.QtGui import QIcon, QColor, QCursor, QPainter, QPen, QFont
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings
+
+from screen_scanner import ScreenScanner
 
 
 # ---- Log Watcher Thread ----
@@ -123,6 +125,62 @@ class LogWatcher(QThread):
         self._running = False
 
 
+class PickOverlay(QWidget):
+    """Full-screen transparent overlay that captures a double-click position."""
+    position_picked = pyqtSignal(str, int, int)  # (resource, screen_x, screen_y)
+
+    def __init__(self, resource, parent=None):
+        super().__init__(parent)
+        self._resource = resource
+        self.setWindowFlags(
+            Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setCursor(Qt.CrossCursor)
+        # Cover entire screen
+        screen = QApplication.primaryScreen().geometry()
+        self.setGeometry(screen)
+
+    def paintEvent(self, event):
+        """Draw a subtle overlay with instruction text."""
+        painter = QPainter(self)
+        # Very slight dark tint
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 25))
+        # Draw instruction
+        painter.setPen(QPen(QColor(255, 255, 255, 200)))
+        painter.setFont(QFont("Segoe UI", 14))
+        res_label = self._resource.upper()
+        painter.drawText(self.rect(), Qt.AlignTop | Qt.AlignHCenter,
+                         f"\n  Double-click on the {res_label} villager count  ")
+        # Draw crosshair at cursor
+        pos = self.mapFromGlobal(QCursor.pos())
+        painter.setPen(QPen(QColor(41, 224, 248, 180), 1))
+        painter.drawLine(pos.x() - 15, pos.y(), pos.x() + 15, pos.y())
+        painter.drawLine(pos.x(), pos.y() - 15, pos.x(), pos.y() + 15)
+        painter.end()
+
+    def mouseMoveEvent(self, event):
+        self.update()  # Repaint crosshair
+
+    def mouseDoubleClickEvent(self, event):
+        """Double-click captures the position."""
+        if event.button() == Qt.LeftButton:
+            gpos = event.globalPos()
+            self.position_picked.emit(self._resource, gpos.x(), gpos.y())
+            self.close()
+
+    def keyPressEvent(self, event):
+        """Esc to cancel."""
+        if event.key() == Qt.Key_Escape:
+            self.close()
+
+    def showEvent(self, event):
+        """Track mouse for crosshair."""
+        self.setMouseTracking(True)
+
+
 class OverlayWebPage(QWebEnginePage):
     """Custom web page that makes the background transparent."""
     def __init__(self, parent=None):
@@ -142,6 +200,8 @@ class OverlayWindow(QMainWindow):
         self._full_geometry = None
         self._page_ready = False
         self._pending_js = []
+        self.scanner = ScreenScanner()
+        self._pick_overlay = None
         self.init_ui()
         self.init_tray()
         self._start_action_polling()
@@ -183,9 +243,16 @@ class OverlayWindow(QMainWindow):
         self.web_view.loadFinished.connect(self._on_page_loaded)
 
         self.setCentralWidget(self.web_view)
-        self._drag_pos = None
-        self._resize_edge = None
-        self._resize_margin = 6
+        self._drag_active = False
+        self._drag_start_x = 0
+        self._drag_start_y = 0
+        self._drag_win_x = 0
+        self._drag_win_y = 0
+        self._resize_active = False
+        self._resize_edge = ''
+        self._resize_start_x = 0
+        self._resize_start_y = 0
+        self._resize_start_geo = None
 
     def _on_page_loaded(self, ok):
         """Called when the web page finishes loading."""
@@ -222,6 +289,12 @@ class OverlayWindow(QMainWindow):
         menu.addAction(click_through_action)
 
         menu.addSeparator()
+
+        size_menu = menu.addMenu("Size")
+        for width in [280, 340, 420, 500]:
+            action = QAction(f"{width}px wide", self)
+            action.triggered.connect(lambda checked, w=width: self._set_width(w))
+            size_menu.addAction(action)
 
         opacity_menu = menu.addMenu("Opacity")
         for level in [100, 80, 60, 40]:
@@ -268,10 +341,10 @@ class OverlayWindow(QMainWindow):
             self.activateWindow()
 
     def _start_action_polling(self):
-        """Poll for actions from the web UI (compact, minimize, close)."""
+        """Poll for actions from the web UI (compact, minimize, close, drag)."""
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll_web_actions)
-        self._poll_timer.start(200)
+        self._poll_timer.start(16)  # ~60fps for smooth drag
         self._last_action_ts = 0
 
     def _poll_web_actions(self):
@@ -302,6 +375,54 @@ class OverlayWindow(QMainWindow):
         elif act == 'compactMode':
             is_compact = action.get('data', False)
             self._apply_compact_mode(is_compact)
+        elif act == 'dragStart':
+            data = action.get('data', {})
+            self._drag_active = True
+            self._drag_start_x = data.get('screenX', 0)
+            self._drag_start_y = data.get('screenY', 0)
+            geo = self.geometry()
+            self._drag_win_x = geo.x()
+            self._drag_win_y = geo.y()
+        elif act == 'dragMove':
+            if self._drag_active:
+                data = action.get('data', {})
+                dx = data.get('screenX', 0) - self._drag_start_x
+                dy = data.get('screenY', 0) - self._drag_start_y
+                self.move(self._drag_win_x + dx, self._drag_win_y + dy)
+        elif act == 'dragEnd':
+            self._drag_active = False
+        elif act == 'resizeStart':
+            data = action.get('data', {})
+            self._resize_active = True
+            self._resize_edge = data.get('edge', '')
+            self._resize_start_x = data.get('screenX', 0)
+            self._resize_start_y = data.get('screenY', 0)
+            self._resize_start_geo = self.geometry()
+        elif act == 'resizeMove':
+            if getattr(self, '_resize_active', False):
+                data = action.get('data', {})
+                dx = data.get('screenX', 0) - self._resize_start_x
+                dy = data.get('screenY', 0) - self._resize_start_y
+                geo = self._resize_start_geo
+                x, y, w, h = geo.x(), geo.y(), geo.width(), geo.height()
+                edge = self._resize_edge
+                if 'right' in edge:
+                    w = max(self.minimumWidth(), min(self.maximumWidth(), geo.width() + dx))
+                if 'left' in edge:
+                    nw = max(self.minimumWidth(), min(self.maximumWidth(), geo.width() - dx))
+                    x = geo.x() + geo.width() - nw
+                    w = nw
+                if 'bottom' in edge:
+                    h = max(self.minimumHeight(), min(self.maximumHeight(), geo.height() + dy))
+                self.setGeometry(x, y, w, h)
+        elif act == 'resizeEnd':
+            self._resize_active = False
+            self._resize_edge = ''
+        elif act == 'ocrPick':
+            resource = action.get('data', 'food')
+            self._start_ocr_pick(resource)
+        elif act == 'ocrScanAll':
+            self._ocr_scan_all()
 
     def _apply_compact_mode(self, compact):
         self._compact_mode = compact
@@ -335,75 +456,51 @@ class OverlayWindow(QMainWindow):
             self.setWindowFlags(self.windowFlags() & ~Qt.WindowTransparentForInput)
         self.show()
 
+    def _set_width(self, width):
+        geo = self.geometry()
+        self.setGeometry(geo.x(), geo.y(), width, geo.height())
+
     def set_opacity(self, level):
         self.opacity_level = level
         self.setWindowOpacity(level)
 
-    # ---- Edge-drag resize for frameless window ----
-    def _edge_at(self, pos):
-        """Return which edge(s) the mouse is near, e.g. 'right', 'bottom', 'bottom-right'."""
-        m = self._resize_margin
-        rect = self.rect()
-        edges = []
-        if pos.x() <= m:
-            edges.append('left')
-        elif pos.x() >= rect.width() - m:
-            edges.append('right')
-        if pos.y() >= rect.height() - m:
-            edges.append('bottom')
-        return '-'.join(edges) if edges else None
+    # ---- OCR Pick Mode ----
+    def _start_ocr_pick(self, resource):
+        """Show fullscreen overlay for user to double-click on the number."""
+        if self._pick_overlay:
+            self._pick_overlay.close()
+        self._pick_overlay = PickOverlay(resource)
+        self._pick_overlay.position_picked.connect(self._on_position_picked)
+        self._pick_overlay.show()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            edge = self._edge_at(event.pos())
-            if edge:
-                self._resize_edge = edge
-                self._resize_start_pos = event.globalPos()
-                self._resize_start_geo = self.geometry()
-                event.accept()
-                return
-        super().mousePressEvent(event)
+    def _on_position_picked(self, resource, sx, sy):
+        """User double-clicked on screen. Hide pick overlay, wait briefly, then capture."""
+        self._pick_overlay = None
+        self._pick_resource = resource
+        self._pick_x = sx
+        self._pick_y = sy
+        # Wait 100ms for pick overlay to fully disappear before capturing
+        QTimer.singleShot(100, self._do_ocr_capture)
 
-    def mouseMoveEvent(self, event):
-        if self._resize_edge and event.buttons() & Qt.LeftButton:
-            delta = event.globalPos() - self._resize_start_pos
-            geo = self._resize_start_geo
-            new_geo = self.geometry()
-            edge = self._resize_edge
-            if 'right' in edge:
-                new_w = max(self.minimumWidth(), geo.width() + delta.x())
-                new_geo.setWidth(min(new_w, self.maximumWidth()))
-            if 'left' in edge:
-                new_w = max(self.minimumWidth(), geo.width() - delta.x())
-                new_w = min(new_w, self.maximumWidth())
-                new_geo.setLeft(geo.right() - new_w)
-                new_geo.setWidth(new_w)
-            if 'bottom' in edge:
-                new_h = max(self.minimumHeight(), geo.height() + delta.y())
-                new_geo.setHeight(min(new_h, self.maximumHeight()))
-            self.setGeometry(new_geo)
-            event.accept()
-            return
-        else:
-            # Update cursor shape on hover
-            edge = self._edge_at(event.pos())
-            if edge in ('right', 'left'):
-                self.setCursor(Qt.SizeHorCursor)
-            elif edge == 'bottom':
-                self.setCursor(Qt.SizeVerCursor)
-            elif edge in ('bottom-right', 'bottom-left'):
-                self.setCursor(Qt.SizeFDiagCursor if 'left' not in edge else Qt.SizeBDiagCursor)
-            else:
-                self.unsetCursor()
-        super().mouseMoveEvent(event)
+    def _do_ocr_capture(self):
+        """Capture at the picked position and read digits."""
+        resource = self._pick_resource
+        val, conf, preview = self.scanner.read_number_at(self._pick_x, self._pick_y)
+        # Save position for future scan-all
+        self.scanner.save_position(resource, self._pick_x, self._pick_y)
+        # Send result to JS
+        val_js = val if val is not None else 'null'
+        preview_js = f"'{preview}'" if preview else 'null'
+        self._run_js(
+            f"onOCRResult('{resource}', {val_js}, {conf:.2f}, {preview_js});"
+        )
 
-    def mouseReleaseEvent(self, event):
-        if self._resize_edge:
-            self._resize_edge = None
-            self.unsetCursor()
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
+    def _ocr_scan_all(self):
+        """Read all saved positions at once."""
+        results = self.scanner.read_all_saved()
+        for res, (val, conf) in results.items():
+            val_js = val if val is not None else 'null'
+            self._run_js(f"onOCRResult('{res}', {val_js}, {conf:.2f}, null);")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

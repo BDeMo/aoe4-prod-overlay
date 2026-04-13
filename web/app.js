@@ -132,6 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.value = savedName;
         searchPlayer(savedName);
     }
+
+    // Title bar drag to move window
+    initTitleBarDrag();
 });
 
 // ---- Font scaling based on window width ----
@@ -144,6 +147,103 @@ function onWindowResize(w, h) {
     const scale = w / BASE_WIDTH;
     const clampedScale = Math.min(1.6, Math.max(0.7, scale));
     document.getElementById('overlay-panel').style.zoom = clampedScale;
+}
+
+// ---- Title Bar Drag (window move) + Edge Resize ----
+const RESIZE_MARGIN = 8; // px from edge to trigger resize
+let _interactionMode = null; // 'drag' | 'resize'
+let _resizeEdge = null;
+
+function _getEdge(e) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const x = e.clientX;
+    const y = e.clientY;
+    const m = RESIZE_MARGIN;
+    let edge = '';
+    if (y >= h - m) edge += 'bottom';
+    if (x <= m) edge += 'left';
+    else if (x >= w - m) edge += 'right';
+    return edge || null;
+}
+
+function _updateResizeCursor(e) {
+    if (_interactionMode) return; // don't change cursor while dragging
+    const edge = _getEdge(e);
+    if (!edge) {
+        document.body.style.cursor = '';
+        return;
+    }
+    if (edge === 'left' || edge === 'right') document.body.style.cursor = 'ew-resize';
+    else if (edge === 'bottom') document.body.style.cursor = 'ns-resize';
+    else if (edge === 'bottomright') document.body.style.cursor = 'nwse-resize';
+    else if (edge === 'bottomleft') document.body.style.cursor = 'nesw-resize';
+    else document.body.style.cursor = '';
+}
+
+function initTitleBarDrag() {
+    const titleBar = document.getElementById('title-bar');
+    if (!titleBar) return;
+
+    // Resize grip (bottom-right corner handle)
+    const grip = document.getElementById('resize-grip');
+    if (grip) {
+        grip.addEventListener('mousedown', (e) => {
+            _interactionMode = 'resize';
+            _resizeEdge = 'bottomright';
+            notifyPyQt('resizeStart', { screenX: e.screenX, screenY: e.screenY, edge: 'bottomright' });
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    }
+
+    // Edge resize — mousedown anywhere near edge
+    document.addEventListener('mousedown', (e) => {
+        if (_interactionMode) return;
+        const edge = _getEdge(e);
+        if (edge) {
+            _interactionMode = 'resize';
+            _resizeEdge = edge;
+            notifyPyQt('resizeStart', { screenX: e.screenX, screenY: e.screenY, edge: edge });
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+    }, true); // capture phase so it fires before title bar drag
+
+    // Title bar drag
+    titleBar.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button')) return;
+        if (_interactionMode) return;
+        _interactionMode = 'drag';
+        notifyPyQt('dragStart', { screenX: e.screenX, screenY: e.screenY });
+        e.preventDefault();
+    });
+
+    // Global move / up
+    document.addEventListener('mousemove', (e) => {
+        if (!_interactionMode) {
+            _updateResizeCursor(e);
+            return;
+        }
+        if (_interactionMode === 'drag') {
+            notifyPyQt('dragMove', { screenX: e.screenX, screenY: e.screenY });
+        } else if (_interactionMode === 'resize') {
+            notifyPyQt('resizeMove', { screenX: e.screenX, screenY: e.screenY });
+        }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+        if (!_interactionMode) return;
+        if (_interactionMode === 'drag') {
+            notifyPyQt('dragEnd', {});
+        } else if (_interactionMode === 'resize') {
+            notifyPyQt('resizeEnd', {});
+        }
+        _interactionMode = null;
+        _resizeEdge = null;
+        document.body.style.cursor = '';
+    });
 }
 
 function initKeyboardShortcuts() {
@@ -610,7 +710,16 @@ function loadSavedPlayerName() {
     return localStorage.getItem('aoe4_player_name') || '';
 }
 
+let _playerSearchDebounce = null;
+function debouncedPlayerSearch() {
+    clearTimeout(_playerSearchDebounce);
+    _playerSearchDebounce = setTimeout(() => {
+        onPlayerNameSubmit();
+    }, 800);
+}
+
 function onPlayerNameSubmit() {
+    clearTimeout(_playerSearchDebounce);
     const input = document.getElementById('player-name-input');
     const name = input.value.trim();
     if (!name) return;
@@ -1016,6 +1125,30 @@ function togglePassiveAuto() {
     localStorage.setItem('aoe4_passive_auto', _passiveAutoEnabled);
     // Notify PyQt5 to start/stop passive income detection
     notifyPyQt('passiveAutoToggle', _passiveAutoEnabled);
+}
+
+// ---- OCR Pick Mode ----
+function ocrPick(resource) {
+    if (typeof IS_WEB !== 'undefined' && IS_WEB) return;
+    notifyPyQt('ocrPick', resource);
+}
+
+function ocrScanAll() {
+    if (typeof IS_WEB !== 'undefined' && IS_WEB) return;
+    notifyPyQt('ocrScanAll', true);
+}
+
+function onOCRResult(resource, value, confidence, previewB64) {
+    if (value !== null && value !== undefined) {
+        const input = document.getElementById(`actual-${resource}`);
+        if (input) {
+            input.value = value;
+            // Flash green to indicate success
+            input.style.borderColor = '#4caf50';
+            setTimeout(() => { input.style.borderColor = ''; }, 1000);
+        }
+        onActualVillChange();
+    }
 }
 
 // ---- Passive Income Sources ----

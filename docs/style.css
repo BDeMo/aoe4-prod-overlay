@@ -104,6 +104,7 @@ html, body {
 
 /* ---- Main Panel ---- */
 #overlay-panel {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -112,6 +113,24 @@ html, body {
     border: 1px solid var(--border-color);
     overflow: hidden;
 }
+
+/* Resize grip */
+#resize-grip {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    color: var(--text-muted);
+    font-size: 8px;
+    line-height: 16px;
+    text-align: center;
+    opacity: 0.5;
+    z-index: 100;
+    user-select: none;
+}
+#resize-grip:hover { opacity: 1; color: var(--accent); }
 
 #content {
     flex: 1;
@@ -545,6 +564,37 @@ html, body {
 .res-diff.surplus { color: #4caf50; }
 .res-diff.deficit { color: #ef5350; }
 .res-diff.balanced { color: var(--text-muted); }
+
+.ocr-pick-btn {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+.ocr-pick-btn:hover { opacity: 1; color: var(--accent); }
+
+.ocr-scan-all-btn {
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+.ocr-scan-all-btn:hover { opacity: 1; color: var(--accent); }
 
 .total-row {
     display: flex;

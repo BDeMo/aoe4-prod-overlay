@@ -54,7 +54,7 @@
                         <div class="resource-bar-track"><div class="resource-bar food" id="bar-food" style="width:0%"></div></div>
                         <span class="resource-value food" id="val-food">0.0</span>
                         <span class="res-passive" id="passive-food" style="display:none"></span>
-                        <input type="number" class="res-actual" id="actual-food" min="0" max="99" placeholder="—" oninput="onActualVillChange()" onblur="onActualVillChange()">
+                        <input type="number" class="res-actual" id="actual-food" min="0" max="99" value="0" oninput="onActualVillChange()" onblur="onActualVillChange()">
                         <span class="res-diff" id="diff-food"></span>
                     </div>
                     <div class="resource-row">
@@ -63,7 +63,7 @@
                         <div class="resource-bar-track"><div class="resource-bar wood" id="bar-wood" style="width:0%"></div></div>
                         <span class="resource-value wood" id="val-wood">0.0</span>
                         <span class="res-passive" id="passive-wood" style="display:none"></span>
-                        <input type="number" class="res-actual" id="actual-wood" min="0" max="99" placeholder="—" oninput="onActualVillChange()" onblur="onActualVillChange()">
+                        <input type="number" class="res-actual" id="actual-wood" min="0" max="99" value="0" oninput="onActualVillChange()" onblur="onActualVillChange()">
                         <span class="res-diff" id="diff-wood"></span>
                     </div>
                     <div class="resource-row">
@@ -72,7 +72,7 @@
                         <div class="resource-bar-track"><div class="resource-bar gold" id="bar-gold" style="width:0%"></div></div>
                         <span class="resource-value gold" id="val-gold">0.0</span>
                         <span class="res-passive" id="passive-gold" style="display:none"></span>
-                        <input type="number" class="res-actual" id="actual-gold" min="0" max="99" placeholder="—" oninput="onActualVillChange()" onblur="onActualVillChange()">
+                        <input type="number" class="res-actual" id="actual-gold" min="0" max="99" value="0" oninput="onActualVillChange()" onblur="onActualVillChange()">
                         <span class="res-diff" id="diff-gold"></span>
                     </div>
                     <div class="resource-row">
@@ -81,7 +81,7 @@
                         <div class="resource-bar-track"><div class="resource-bar stone" id="bar-stone" style="width:0%"></div></div>
                         <span class="resource-value stone" id="val-stone">0.0</span>
                         <span class="res-passive" id="passive-stone" style="display:none"></span>
-                        <input type="number" class="res-actual" id="actual-stone" min="0" max="99" placeholder="—" oninput="onActualVillChange()" onblur="onActualVillChange()">
+                        <input type="number" class="res-actual" id="actual-stone" min="0" max="99" value="0" oninput="onActualVillChange()" onblur="onActualVillChange()">
                         <span class="res-diff" id="diff-stone"></span>
                     </div>
                     <div class="total-row">
@@ -148,8 +148,7 @@
                 </div>
                 <div class="player-search-row">
                     <input type="text" id="player-name-input" placeholder="Enter player name..."
-                           onkeydown="if(event.key==='Enter')onPlayerNameSubmit()">
-                    <button class="search-btn" onclick="onPlayerNameSubmit()">&#8594;</button>
+                           oninput="debouncedPlayerSearch()" onkeydown="if(event.key==='Enter')onPlayerNameSubmit()">
                 </div>
                 <div id="opponent-players"></div>
             </div>
