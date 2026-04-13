@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AoE4 Production Overlay</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="overlay-panel">
+        <!-- Title Bar -->
+        <div id="title-bar">
+            <span class="title">AoE4 Prod Calc</span>
+            <div class="controls">
+                <button class="compact-btn" onclick="toggleCompactMode()" title="Compact mode (Ctrl+M)">&#9881;</button>
+                <button class="min-btn" onclick="minimizePanel()" title="Hide (Ctrl+H)">&#8722;</button>
+                <button class="close-btn" onclick="closePanel()" title="Close">&#10005;</button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div id="content">
+            <!-- Civilization Selector -->
+            <div class="section collapsible-section" id="section-civ">
+                <div class="section-label">Civilization</div>
+                <select id="civ-selector" onchange="onCivChange(this.value)"></select>
+            </div>
+
+            <!-- Unit Grid -->
+            <div class="section collapsible-section" id="section-units">
+                <div class="section-label">Units</div>
+                <div id="unit-grid"></div>
+            </div>
+
+            <!-- Selected Units -->
+            <div class="section" id="section-queue">
+                <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+                    Production Queue
+                    <button class="clear-btn" onclick="clearQueue()" title="Clear all">Clear</button>
+                </div>
+                <div id="selected-units">
+                    <div class="empty-state">Click units above to add them</div>
+                </div>
+            </div>
+
+            <!-- Villager Requirements -->
+            <div class="section">
+                <div class="section-label">Villager Requirements</div>
+                <div id="villager-output">
+                    <div class="resource-row">
+                        <div class="resource-icon food"></div>
+                        <span class="resource-label">Food</span>
+                        <div class="resource-bar-track"><div class="resource-bar food" id="bar-food" style="width:0%"></div></div>
+                        <span class="resource-value food" id="val-food">0.0</span>
+                    </div>
+                    <div class="resource-row">
+                        <div class="resource-icon wood"></div>
+                        <span class="resource-label">Wood</span>
+                        <div class="resource-bar-track"><div class="resource-bar wood" id="bar-wood" style="width:0%"></div></div>
+                        <span class="resource-value wood" id="val-wood">0.0</span>
+                    </div>
+                    <div class="resource-row">
+                        <div class="resource-icon gold"></div>
+                        <span class="resource-label">Gold</span>
+                        <div class="resource-bar-track"><div class="resource-bar gold" id="bar-gold" style="width:0%"></div></div>
+                        <span class="resource-value gold" id="val-gold">0.0</span>
+                    </div>
+                    <div class="resource-row">
+                        <div class="resource-icon stone"></div>
+                        <span class="resource-label">Stone</span>
+                        <div class="resource-bar-track"><div class="resource-bar stone" id="bar-stone" style="width:0%"></div></div>
+                        <span class="resource-value stone" id="val-stone">0.0</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="total-label">Total Villagers</span>
+                        <span class="total-value" id="val-total">0.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="section collapsible-section" id="section-settings">
+                <div class="settings-toggle" onclick="toggleSettings()">
+                    <span class="arrow" id="settings-arrow">&#9654;</span>
+                    <span>Settings</span>
+                </div>
+                <div class="settings-content" id="settings-content">
+                    <div class="setting-row">
+                        <label>Food source:</label>
+                        <select id="food-source" onchange="onFoodSourceChange(this.value)">
+                            <option value="FARM">Farm</option>
+                            <option value="SHEEP">Sheep</option>
+                            <option value="BERRY">Berry</option>
+                            <option value="DEER">Deer</option>
+                            <option value="CATTLE">Cattle</option>
+                        </select>
+                    </div>
+                    <div id="gathering-rate-toggles"></div>
+                    <div id="production-speed-toggles"></div>
+                    <div id="cost-modifier-toggles"></div>
+
+                    <div class="subsection-label">Keyboard Shortcuts</div>
+                    <div id="hotkey-settings"></div>
+
+                    <div class="subsection-label">Layout</div>
+                    <div class="setting-row">
+                        <label>
+                            <input type="checkbox" id="toggle-opponent-panel" onchange="toggleOpponentPanel()">
+                            Show opponent info panel
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Passive Income Sources (civ-specific) -->
+            <div class="section collapsible-section" id="passive-income-section" style="display:none">
+                <div class="section-label">Passive Income Sources</div>
+                <div id="passive-income-sources"></div>
+            </div>
+
+            <!-- Opponent Info (aoe4world.com API) -->
+            <div class="section" id="opponent-section" style="display:none">
+                <div class="section-label">Player Lookup</div>
+                <div class="player-search-row">
+                    <input type="text" id="player-name-input" placeholder="Enter player name..."
+                           onkeydown="if(event.key==='Enter')onPlayerNameSubmit()">
+                    <button class="search-btn" onclick="onPlayerNameSubmit()">&#8594;</button>
+                </div>
+                <div id="opponent-players"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="calculator.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
