@@ -25,7 +25,8 @@ def main():
         '--name', 'AoE4ProdOverlay',
         '--onefile',
         '--windowed',              # No console window
-        '--add-data', 'web;web',   # Bundle the web folder
+        '--add-data', 'web;web',              # Bundle the web folder
+        '--add-data', 'digit_model.onnx;.',   # AlexNet ONNX model
         '--noconsole',
         'main.py'
     ]

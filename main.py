@@ -126,12 +126,15 @@ class LogWatcher(QThread):
 
 
 class PickOverlay(QWidget):
-    """Full-screen transparent overlay that captures a double-click position."""
-    position_picked = pyqtSignal(str, int, int)  # (resource, screen_x, screen_y)
+    """Full-screen transparent overlay for drag-selecting a screen region."""
+    region_picked = pyqtSignal(str, int, int, int, int)  # (resource, x, y, w, h)
 
     def __init__(self, resource, parent=None):
         super().__init__(parent)
         self._resource = resource
+        self._dragging = False
+        self._start = None
+        self._end = None
         self.setWindowFlags(
             Qt.FramelessWindowHint
             | Qt.WindowStaysOnTopHint
@@ -139,47 +142,65 @@ class PickOverlay(QWidget):
         )
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setCursor(Qt.CrossCursor)
-        # Cover entire screen
         screen = QApplication.primaryScreen().geometry()
         self.setGeometry(screen)
 
     def paintEvent(self, event):
-        """Draw a subtle overlay with instruction text."""
         painter = QPainter(self)
-        # Very slight dark tint
         painter.fillRect(self.rect(), QColor(0, 0, 0, 25))
-        # Draw instruction
+        # Instruction
         painter.setPen(QPen(QColor(255, 255, 255, 200)))
         painter.setFont(QFont("Segoe UI", 14))
         if self._resource == 'all':
-            hint = "Double-click on the FOOD villager count\n(wood/gold/stone will be derived automatically)"
+            hint = "Drag to select all 4 villager count numbers"
         else:
-            hint = f"Double-click on the {self._resource.upper()} villager count"
-        painter.drawText(self.rect(), Qt.AlignTop | Qt.AlignHCenter, f"\n  {hint}  ")
-        # Draw crosshair at cursor
+            hint = f"Drag to select the {self._resource.upper()} villager count"
+        painter.drawText(self.rect(), Qt.AlignTop | Qt.AlignHCenter,
+                         f"\n  {hint}\n  Esc to cancel  ")
+        # Selection rectangle
+        if self._dragging and self._start and self._end:
+            from PyQt5.QtCore import QRect
+            r = QRect(self._start, self._end).normalized()
+            painter.setPen(QPen(QColor(41, 224, 248, 220), 2))
+            painter.setBrush(QColor(41, 224, 248, 30))
+            painter.drawRect(r)
+        # Crosshair
         pos = self.mapFromGlobal(QCursor.pos())
         painter.setPen(QPen(QColor(41, 224, 248, 180), 1))
-        painter.drawLine(pos.x() - 15, pos.y(), pos.x() + 15, pos.y())
-        painter.drawLine(pos.x(), pos.y() - 15, pos.x(), pos.y() + 15)
+        painter.drawLine(pos.x() - 20, pos.y(), pos.x() + 20, pos.y())
+        painter.drawLine(pos.x(), pos.y() - 20, pos.x(), pos.y() + 20)
         painter.end()
 
-    def mouseMoveEvent(self, event):
-        self.update()  # Repaint crosshair
-
-    def mouseDoubleClickEvent(self, event):
-        """Double-click captures the position."""
+    def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            gpos = event.globalPos()
-            self.position_picked.emit(self._resource, gpos.x(), gpos.y())
-            self.close()
+            self._dragging = True
+            self._start = event.pos()
+            self._end = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if self._dragging:
+            self._end = event.pos()
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self._dragging:
+            self._dragging = False
+            self._end = event.pos()
+            g1 = self.mapToGlobal(self._start)
+            g2 = self.mapToGlobal(self._end)
+            sx = min(g1.x(), g2.x())
+            sy = min(g1.y(), g2.y())
+            sw = abs(g2.x() - g1.x())
+            sh = abs(g2.y() - g1.y())
+            if sw > 5 and sh > 5:
+                self.region_picked.emit(self._resource, sx, sy, sw, sh)
+                self.close()
 
     def keyPressEvent(self, event):
-        """Esc to cancel."""
         if event.key() == Qt.Key_Escape:
             self.close()
 
     def showEvent(self, event):
-        """Track mouse for crosshair."""
         self.setMouseTracking(True)
 
 
@@ -454,6 +475,10 @@ class OverlayWindow(QMainWindow):
             self._ocr_interval = max(200, min(5000, ms))
             if self._ocr_timer and self._ocr_timer.isActive():
                 self._ocr_timer.setInterval(self._ocr_interval)
+        elif act == 'ocrReset':
+            self.scanner.reset_regions()
+            if self._ocr_timer:
+                self._ocr_timer.stop()
 
     def _apply_compact_mode(self, compact):
         self._compact_mode = compact
@@ -497,35 +522,33 @@ class OverlayWindow(QMainWindow):
 
     # ---- OCR Pick Mode ----
     def _start_ocr_pick(self, resource):
-        """Show fullscreen overlay for user to double-click on the number."""
+        """Show fullscreen overlay for user to drag-select a region."""
         if self._pick_overlay:
             self._pick_overlay.close()
         self._pick_overlay = PickOverlay(resource)
-        self._pick_overlay.position_picked.connect(self._on_position_picked)
+        self._pick_overlay.region_picked.connect(self._on_region_picked)
         self._pick_overlay.show()
 
-    def _on_position_picked(self, resource, sx, sy):
-        """User double-clicked on screen. Hide pick overlay, wait briefly, then capture."""
+    def _on_region_picked(self, resource, sx, sy, sw, sh):
+        """User dragged a region. Save it and immediately scan."""
         self._pick_overlay = None
         self._pick_resource = resource
-        self._pick_x = sx
-        self._pick_y = sy
-        # Wait 100ms for pick overlay to fully disappear before capturing
-        QTimer.singleShot(100, self._do_ocr_capture)
+        self._pick_region = (sx, sy, sw, sh)
+        # Wait 100ms for pick overlay to disappear before capturing
+        QTimer.singleShot(100, self._do_ocr_region_capture)
 
-    def _do_ocr_capture(self):
-        """Capture at the picked position."""
+    def _do_ocr_region_capture(self):
         resource = self._pick_resource
-        x, y = self._pick_x, self._pick_y
+        sx, sy, sw, sh = self._pick_region
 
         if resource == 'all':
-            # "Pick All" mode: user clicked the food number, derive all 4
-            self.scanner.set_anchor(x, y)
+            # Save the full region — scanner will capture this exact area each time
+            self.scanner.set_region(sx, sy, sw, sh)
             self._ocr_scan_all()
         else:
-            # Single resource pick: save individual position and read just that one
-            self.scanner.save_single_position(resource, x, y)
-            val, conf, preview = self.scanner.read_single(x, y)
+            # Single resource: save region for just this one
+            self.scanner.set_single_region(resource, sx, sy, sw, sh)
+            val, conf = self.scanner.read_single_region(resource)
             val_js = val if val is not None else 'null'
             self._run_js(f"onOCRResult('{resource}', {val_js}, {conf:.2f}, null);")
 
