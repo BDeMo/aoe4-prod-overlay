@@ -508,7 +508,7 @@ const COMMON_GATHERING_RATE_MODIFIERS = {
         id: 'WHEELBARROW',
         apply: (rates) => ({ food: rates.food * 1.05, wood: rates.wood * 1.05, gold: rates.gold * 1.05, stone: rates.stone * 1.05 }),
         description: 'Wheelbarrow +5%',
-        source: 'tc', age: 'I'
+        source: 'mill', age: 'I'
     },
     SURVIVALTECH: {
         id: 'SURVIVALTECH',
