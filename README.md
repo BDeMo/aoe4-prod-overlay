@@ -2,6 +2,8 @@
 
 A floating, semi-transparent desktop overlay for Age of Empires IV that calculates villager requirements for continuous unit production.
 
+**Web version**: [https://bdemo.github.io/aoe4-prod-overlay/](https://bdemo.github.io/aoe4-prod-overlay/)
+
 ## Features
 
 - **Villager Calculator** — Select units from the production queue and see exactly how many villagers you need on each resource (food, wood, gold, stone)
@@ -113,7 +115,7 @@ All shortcuts are customizable in Settings.
 
 ## Support
 
-If you find this tool useful, buy me a coffee via Zelle: **mymail**
+If you find this tool useful, buy me a coffee via Zelle: [3101ihs@gmail.com](mailto:3101ihs@gmail.com)
 
 ## License
 

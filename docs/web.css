@@ -1,0 +1,61 @@
+/* Web mode overrides — full page layout instead of overlay */
+
+body.web-mode {
+    background: #0a0a12;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+body.web-mode #overlay-panel {
+    width: 100%;
+    max-width: 420px;
+    height: auto;
+    min-height: 100vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+body.web-mode #content {
+    overflow-y: visible;
+}
+
+body.web-mode #title-bar {
+    cursor: default;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+body.web-mode #title-bar:active {
+    cursor: default;
+}
+
+/* Wider unit grid for web */
+body.web-mode .unit-icon {
+    width: 36px;
+    height: 36px;
+}
+
+/* Better select styling for web */
+body.web-mode select {
+    cursor: pointer;
+}
+
+/* Link styling */
+body.web-mode a:hover {
+    text-decoration: underline !important;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    body.web-mode {
+        padding: 0;
+    }
+    body.web-mode #overlay-panel {
+        border-radius: 0;
+        max-width: 100%;
+    }
+}
