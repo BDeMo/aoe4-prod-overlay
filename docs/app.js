@@ -1127,8 +1127,15 @@ function togglePassiveAuto() {
 
 // ---- OCR Pick Mode ----
 function ocrPick(resource) {
+    // Pick a single resource position — double-click on that resource's number
     if (typeof IS_WEB !== 'undefined' && IS_WEB) return;
     notifyPyQt('ocrPick', resource);
+}
+
+function ocrPickAll() {
+    // Pick all at once — double-click on the FOOD number, others derived by row spacing
+    if (typeof IS_WEB !== 'undefined' && IS_WEB) return;
+    notifyPyQt('ocrPick', 'all');
 }
 
 function ocrScanAll() {
@@ -1372,6 +1379,7 @@ function onActualVillChange() {
 
 function updatePerResourceDiff() {
     const resources = ['food', 'wood', 'gold', 'stone'];
+    const passive = getPassiveVillagerEquiv();
     resources.forEach(res => {
         const input = document.getElementById(`actual-${res}`);
         const diffEl = document.getElementById(`diff-${res}`);
@@ -1379,6 +1387,7 @@ function updatePerResourceDiff() {
 
         const actual = parseInt(input.value);
         const needed = _lastReq[res] || 0;
+        const passiveEquiv = passive[res] || 0;
 
         if (isNaN(actual) || input.value === '') {
             diffEl.textContent = '';
@@ -1386,7 +1395,9 @@ function updatePerResourceDiff() {
             return;
         }
 
-        const diff = actual - needed;
+        // Have + passive equivalent - needed
+        const effective = actual + passiveEquiv;
+        const diff = effective - needed;
         if (Math.abs(diff) < 0.3) {
             diffEl.textContent = '✓';
             diffEl.className = 'res-diff balanced';

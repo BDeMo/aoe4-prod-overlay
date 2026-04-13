@@ -151,9 +151,11 @@ class PickOverlay(QWidget):
         # Draw instruction
         painter.setPen(QPen(QColor(255, 255, 255, 200)))
         painter.setFont(QFont("Segoe UI", 14))
-        res_label = self._resource.upper()
-        painter.drawText(self.rect(), Qt.AlignTop | Qt.AlignHCenter,
-                         f"\n  Double-click on the {res_label} villager count  ")
+        if self._resource == 'all':
+            hint = "Double-click on the FOOD villager count\n(wood/gold/stone will be derived automatically)"
+        else:
+            hint = f"Double-click on the {self._resource.upper()} villager count"
+        painter.drawText(self.rect(), Qt.AlignTop | Qt.AlignHCenter, f"\n  {hint}  ")
         # Draw crosshair at cursor
         pos = self.mapFromGlobal(QCursor.pos())
         painter.setPen(QPen(QColor(41, 224, 248, 180), 1))
@@ -512,24 +514,24 @@ class OverlayWindow(QMainWindow):
         QTimer.singleShot(100, self._do_ocr_capture)
 
     def _do_ocr_capture(self):
-        """Capture at the picked position and read digits."""
+        """Capture at the picked position."""
         resource = self._pick_resource
-        val, conf, preview = self.scanner.read_number_at(self._pick_x, self._pick_y)
-        # Save position for future scan-all
-        self.scanner.save_position(resource, self._pick_x, self._pick_y)
-        # Send result to JS
-        val_js = val if val is not None else 'null'
-        preview_js = f"'{preview}'" if preview else 'null'
-        self._run_js(
-            f"onOCRResult('{resource}', {val_js}, {conf:.2f}, {preview_js});"
-        )
-        # If auto-refresh timer is active, ensure it keeps running with new positions
-        if self._ocr_timer and self._ocr_timer.isActive():
-            pass  # Already running, new position will be picked up next tick
+        x, y = self._pick_x, self._pick_y
+
+        if resource == 'all':
+            # "Pick All" mode: user clicked the food number, derive all 4
+            self.scanner.set_anchor(x, y)
+            self._ocr_scan_all()
+        else:
+            # Single resource pick: save individual position and read just that one
+            self.scanner.save_single_position(resource, x, y)
+            val, conf, preview = self.scanner.read_single(x, y)
+            val_js = val if val is not None else 'null'
+            self._run_js(f"onOCRResult('{resource}', {val_js}, {conf:.2f}, null);")
 
     def _ocr_scan_all(self):
-        """Read all saved positions at once."""
-        results = self.scanner.read_all_saved()
+        """Read all positions at once (anchor-based or individual overrides)."""
+        results = self.scanner.read_all()
         for res, (val, conf) in results.items():
             val_js = val if val is not None else 'null'
             self._run_js(f"onOCRResult('{res}', {val_js}, {conf:.2f}, null);")
