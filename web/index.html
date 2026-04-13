@@ -12,37 +12,39 @@
         <div id="title-bar">
             <span class="title">AoE4 Prod Calc</span>
             <div class="controls">
-                <button class="compact-btn" onclick="toggleCompactMode()" title="Compact mode (Ctrl+M)">&#9881;</button>
+                <button class="settings-btn" onclick="toggleSettingsDropdown()" title="Settings">&#9881;</button>
+                <button class="compact-btn" onclick="toggleCompactMode()" title="Compact mode (Ctrl+M)">&#9724;</button>
                 <button class="min-btn" onclick="minimizePanel()" title="Hide (Ctrl+H)">&#8722;</button>
                 <button class="close-btn" onclick="closePanel()" title="Close">&#10005;</button>
             </div>
         </div>
 
+        <!-- Settings Dropdown (gear button — rarely used items only) -->
+        <div id="settings-dropdown">
+            <div class="settings-dropdown-content">
+                <div class="subsection-label" style="display:flex;justify-content:space-between;align-items:center">
+                    Keyboard Shortcuts
+                    <button class="clear-btn" onclick="resetHotkeys()">Reset</button>
+                </div>
+                <div id="hotkey-settings"></div>
+
+                <div class="subsection-label">Layout</div>
+                <div class="setting-row">
+                    <label>
+                        <input type="checkbox" id="toggle-opponent-panel" onchange="toggleOpponentPanel()">
+                        Show opponent info panel
+                    </label>
+                </div>
+
+                <div class="subsection-label">Data</div>
+                <div class="setting-row">
+                    <button class="reset-btn" onclick="resetAllSettings()">Reset All Settings</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Content -->
         <div id="content">
-            <!-- Civilization Selector -->
-            <div class="section collapsible-section" id="section-civ">
-                <div class="section-label">Civilization</div>
-                <select id="civ-selector" onchange="onCivChange(this.value)"></select>
-            </div>
-
-            <!-- Unit Grid -->
-            <div class="section collapsible-section" id="section-units">
-                <div class="section-label">Units</div>
-                <div id="unit-grid"></div>
-            </div>
-
-            <!-- Selected Units -->
-            <div class="section" id="section-queue">
-                <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
-                    Production Queue
-                    <button class="clear-btn" onclick="clearQueue()" title="Clear all">Clear</button>
-                </div>
-                <div id="selected-units">
-                    <div class="empty-state">Click units above to add them</div>
-                </div>
-            </div>
-
             <!-- Villager Requirements -->
             <div class="section">
                 <div class="section-label">Villager Requirements</div>
@@ -78,38 +80,47 @@
                 </div>
             </div>
 
-            <!-- Settings -->
-            <div class="section collapsible-section" id="section-settings">
-                <div class="settings-toggle" onclick="toggleSettings()">
-                    <span class="arrow" id="settings-arrow">&#9654;</span>
-                    <span>Settings</span>
-                </div>
-                <div class="settings-content" id="settings-content">
-                    <div class="setting-row">
-                        <label>Food source:</label>
-                        <select id="food-source" onchange="onFoodSourceChange(this.value)">
-                            <option value="FARM">Farm</option>
-                            <option value="SHEEP">Sheep</option>
-                            <option value="BERRY">Berry</option>
-                            <option value="DEER">Deer</option>
-                            <option value="CATTLE">Cattle</option>
-                        </select>
-                    </div>
-                    <div id="gathering-rate-toggles"></div>
-                    <div id="production-speed-toggles"></div>
-                    <div id="cost-modifier-toggles"></div>
+            <!-- Civilization Selector -->
+            <div class="section collapsible-section" id="section-civ">
+                <div class="section-label">Civilization</div>
+                <select id="civ-selector" onchange="onCivChange(this.value)"></select>
+            </div>
 
-                    <div class="subsection-label">Keyboard Shortcuts</div>
-                    <div id="hotkey-settings"></div>
+            <!-- Unit Grid -->
+            <div class="section collapsible-section" id="section-units">
+                <div class="section-label">Units</div>
+                <div id="unit-grid"></div>
+            </div>
 
-                    <div class="subsection-label">Layout</div>
-                    <div class="setting-row">
-                        <label>
-                            <input type="checkbox" id="toggle-opponent-panel" onchange="toggleOpponentPanel()">
-                            Show opponent info panel
-                        </label>
-                    </div>
+            <!-- Selected Units -->
+            <div class="section" id="section-queue">
+                <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+                    Production Queue
+                    <button class="clear-btn" onclick="clearQueue()" title="Clear all">Clear</button>
                 </div>
+                <div id="selected-units">
+                    <div class="empty-state">Click units above to add them</div>
+                </div>
+            </div>
+
+            <!-- Modifiers -->
+            <div class="section collapsible-section" id="section-modifiers">
+                <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+                    Modifiers
+                    <button class="clear-btn" onclick="resetModifiers()">Reset</button>
+                </div>
+                <div class="setting-row">
+                    <label>Food source:</label>
+                    <select id="food-source" onchange="onFoodSourceChange(this.value)">
+                        <option value="FARM">Farm</option>
+                        <option value="SHEEP">Sheep</option>
+                        <option value="BERRY">Berry</option>
+                        <option value="DEER">Deer</option>
+                        <option value="CATTLE">Cattle</option>
+                    </select>
+                </div>
+                <div id="common-modifiers-group"></div>
+                <div id="civ-modifiers-group"></div>
             </div>
 
             <!-- Passive Income Sources (civ-specific) -->
@@ -120,7 +131,10 @@
 
             <!-- Opponent Info (aoe4world.com API) -->
             <div class="section" id="opponent-section" style="display:none">
-                <div class="section-label">Player Lookup</div>
+                <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+                    Player Lookup
+                    <button class="clear-btn" onclick="clearOpponentData()">Clear</button>
+                </div>
                 <div class="player-search-row">
                     <input type="text" id="player-name-input" placeholder="Enter player name..."
                            onkeydown="if(event.key==='Enter')onPlayerNameSubmit()">

@@ -507,7 +507,8 @@ const COMMON_GATHERING_RATE_MODIFIERS = {
     WHEELBARROW: {
         id: 'WHEELBARROW',
         apply: (rates) => ({ food: rates.food * 1.05, wood: rates.wood * 1.05, gold: rates.gold * 1.05, stone: rates.stone * 1.05 }),
-        description: 'All +5%'
+        description: 'Wheelbarrow +5%',
+        source: 'tc', age: 'I'
     },
     SURVIVALTECH: {
         id: 'SURVIVALTECH',
@@ -515,47 +516,56 @@ const COMMON_GATHERING_RATE_MODIFIERS = {
             if (foodSource === 'FARM') return rates;
             return { ...rates, food: rates.food * 1.10 };
         },
-        description: 'Non-farm food +10%'
+        description: 'Survival Tech +10%',
+        source: 'mill', age: 'I'
     },
     HORTICULTURE: {
         id: 'HORTICULTURE',
         apply: (rates) => ({ ...rates, food: rates.food * GR_MULTIPLIERS.HORTICULTURE }),
-        description: 'Farm food +8%'
+        description: 'Horticulture +8%',
+        source: 'mill', age: 'II'
     },
     FERTILIZATION: {
         id: 'FERTILIZATION',
         apply: (rates) => ({ ...rates, food: rates.food * GR_MULTIPLIERS.FERTILIZATION }),
-        description: 'Farm food +6.7%'
+        description: 'Fertilization +6.7%',
+        source: 'mill', age: 'III'
     },
     CROSS_BREEDING: {
         id: 'CROSS_BREEDING',
         apply: (rates) => ({ ...rates, food: rates.food * GR_MULTIPLIERS.CROSS_BREEDING }),
-        description: 'Farm food +6.7%'
+        description: 'Crossbreeding +6.7%',
+        source: 'mill', age: 'IV'
     },
     DOUBLE_BROADAX: {
         id: 'DOUBLE_BROADAX',
         apply: (rates) => ({ ...rates, wood: rates.wood * GR_MULTIPLIERS.DOUBLE_BROADAX }),
-        description: 'Wood +10%'
+        description: 'Double Broadax +10%',
+        source: 'lumber', age: 'II'
     },
     LUMBER_PRESERVATION: {
         id: 'LUMBER_PRESERVATION',
         apply: (rates) => ({ ...rates, wood: rates.wood * GR_MULTIPLIERS.LUMBER_PRESERVATION }),
-        description: 'Wood +9%'
+        description: 'Lumber Preservation +9%',
+        source: 'lumber', age: 'III'
     },
     CROSSCUT_SAW: {
         id: 'CROSSCUT_SAW',
         apply: (rates) => ({ ...rates, wood: rates.wood * GR_MULTIPLIERS.CROSSCUT_SAW }),
-        description: 'Wood +8%'
+        description: 'Crosscut Saw +8%',
+        source: 'lumber', age: 'IV'
     },
     SPECIALIZED_PICK: {
         id: 'SPECIALIZED_PICK',
         apply: (rates) => ({ ...rates, gold: rates.gold * GR_MULTIPLIERS.SPECIALIZED_PICK, stone: rates.stone * GR_MULTIPLIERS.SPECIALIZED_PICK }),
-        description: 'Gold/Stone +12%'
+        description: 'Specialized Pick +12%',
+        source: 'mining', age: 'II'
     },
     ACID_DISTILLATION: {
         id: 'ACID_DISTILLATION',
         apply: (rates) => ({ ...rates, gold: rates.gold * GR_MULTIPLIERS.ACID_DISTILLATION, stone: rates.stone * GR_MULTIPLIERS.ACID_DISTILLATION }),
-        description: 'Gold/Stone +11%'
+        description: 'Acid Distillation +11%',
+        source: 'mining', age: 'III'
     }
 };
 
@@ -565,7 +575,8 @@ const COMMON_PRODUCTION_SPEED_MODIFIERS = {
         id: 'MILITARY_ACADEMY',
         canBeApplied: (unit) => unit.types && (unit.types.includes(UnitType.INFANTRY) || unit.types.includes(UnitType.CAVALRY) || unit.types.includes(UnitType.SIEGE)),
         productionSpeedBonus: 0.33,
-        description: 'Military +33%'
+        description: 'Military Academy +33%',
+        source: 'blacksmith', age: 'IV'
     }
 };
 

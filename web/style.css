@@ -87,6 +87,11 @@ html, body {
     color: var(--text-primary);
 }
 
+#title-bar .controls .settings-btn:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
 #title-bar .controls .compact-btn:hover {
     background: var(--accent-dim);
     color: var(--accent);
@@ -328,6 +333,24 @@ html, body {
     background: rgba(239, 83, 80, 0.1);
 }
 
+.reset-btn {
+    padding: 4px 12px;
+    background: transparent;
+    border: 1px solid var(--danger);
+    border-radius: 3px;
+    color: var(--danger);
+    font-size: 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-family: var(--font);
+    transition: all 0.15s;
+}
+
+.reset-btn:hover {
+    background: rgba(239, 83, 80, 0.15);
+}
+
 /* ---- Villager Output ---- */
 .resource-row {
     display: flex;
@@ -406,33 +429,30 @@ html, body {
     color: var(--accent);
 }
 
-/* ---- Settings Drawer ---- */
-.settings-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 0;
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: 11px;
-    transition: color 0.15s;
-}
-
-.settings-toggle:hover { color: var(--text-primary); }
-
-.settings-toggle .arrow {
-    transition: transform 0.2s;
-    font-size: 8px;
-}
-
-.settings-toggle .arrow.open { transform: rotate(90deg); }
-
-.settings-content {
+/* ---- Settings Dropdown ---- */
+#settings-dropdown {
     display: none;
-    padding-top: 6px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: rgba(10, 10, 18, 0.98);
+    border-bottom: 1px solid var(--accent);
+    padding: 0;
 }
 
-.settings-content.open { display: block; }
+#settings-dropdown.open {
+    display: block;
+}
+
+#settings-dropdown::-webkit-scrollbar { width: 4px; }
+#settings-dropdown::-webkit-scrollbar-track { background: transparent; }
+#settings-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+
+.settings-dropdown-content {
+    padding: 8px 10px;
+}
 
 .setting-row {
     display: flex;
@@ -469,6 +489,65 @@ html, body {
 
 .setting-row select option {
     background: #1a1a2a;
+}
+
+.modifier-group-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-top: 6px;
+    margin-bottom: 2px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modifier-group-label:first-child {
+    margin-top: 0;
+}
+
+.modifier-source-tag {
+    color: var(--text-muted);
+    margin-left: 4px;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+}
+
+.modifier-source-tag svg {
+    vertical-align: middle;
+}
+
+.modifier-age-tag {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 3px;
+    border-radius: 2px;
+    margin-left: 3px;
+    vertical-align: middle;
+}
+
+.modifier-age-tag.age-I { color: #aaa; background: rgba(170,170,170,0.12); }
+.modifier-age-tag.age-II { color: #5cb85c; background: rgba(92,184,92,0.12); }
+.modifier-age-tag.age-III { color: #5bc0de; background: rgba(91,192,222,0.12); }
+.modifier-age-tag.age-IV { color: #f0ad4e; background: rgba(240,173,78,0.12); }
+
+.popular-star {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-left: 2px;
+    margin-right: 1px;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.popular-star:hover {
+    color: var(--gold-color);
+}
+
+.popular-star.active {
+    color: var(--gold-color);
 }
 
 /* ---- Subsection Labels ---- */
@@ -581,6 +660,11 @@ html, body {
 .opponent-record .losses { color: var(--danger); }
 
 .opponent-rank {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.opponent-score {
     font-size: 10px;
     color: var(--text-muted);
 }

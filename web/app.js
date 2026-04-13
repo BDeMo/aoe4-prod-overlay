@@ -2,6 +2,23 @@
  * AoE4 Production Overlay - UI Application Logic
  */
 
+// ---- Building Source Icons (inline SVG) ----
+const SOURCE_ICONS = {
+    tc:         '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 1L1 6v1h2v7h10V7h2V6L8 1z" fill="currentColor"/></svg>',
+    mill:       '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 1l-1 3-3-1 1 3-3 1 3 1-1 3 3-1 1 3 1-3 3 1-1-3 3-1-3-1 1-3-3 1-1-3z" fill="currentColor"/><rect x="6" y="10" width="4" height="5" fill="currentColor"/></svg>',
+    lumber:     '<svg viewBox="0 0 16 16" width="12" height="12"><rect x="2" y="4" width="12" height="3" rx="1" fill="currentColor"/><rect x="2" y="9" width="12" height="3" rx="1" fill="currentColor"/><rect x="6" y="2" width="4" height="12" rx="1" fill="currentColor" opacity="0.5"/></svg>',
+    mining:     '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M3 13l5-11 5 11H3z" fill="currentColor" opacity="0.7"/><path d="M6 8l2-4 2 4H6z" fill="currentColor"/></svg>',
+    blacksmith: '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M4 2v5l4 4 4-4V2H4z" fill="currentColor" opacity="0.6"/><rect x="7" y="9" width="2" height="5" fill="currentColor"/><rect x="5" y="13" width="6" height="2" rx="1" fill="currentColor"/></svg>',
+};
+
+const SOURCE_NAMES = {
+    tc: 'Town Center',
+    mill: 'Mill',
+    lumber: 'Lumber Camp',
+    mining: 'Mining Camp',
+    blacksmith: 'Blacksmith',
+};
+
 // ---- State ----
 let currentCiv = 'ENGLAND';
 let selectedUnits = {}; // { unitId: count }
@@ -45,6 +62,31 @@ function saveHotkeys(hotkeys) {
 }
 
 let hotkeys = loadHotkeys();
+
+// ---- Favorite (starred) modifiers ----
+function loadFavorites() {
+    try {
+        const saved = localStorage.getItem('aoe4_favorites');
+        if (saved) return new Set(JSON.parse(saved));
+    } catch(e) {}
+    return new Set();
+}
+
+function saveFavorites() {
+    localStorage.setItem('aoe4_favorites', JSON.stringify([...favorites]));
+}
+
+let favorites = loadFavorites();
+
+function toggleFavorite(modId) {
+    if (favorites.has(modId)) {
+        favorites.delete(modId);
+    } else {
+        favorites.add(modId);
+    }
+    saveFavorites();
+    renderModifierToggles();
+}
 
 function hotkeyToString(hk) {
     let parts = [];
@@ -125,10 +167,13 @@ function onFoodSourceChange(source) {
 }
 
 function toggleSettings() {
-    const content = document.getElementById('settings-content');
-    const arrow = document.getElementById('settings-arrow');
-    content.classList.toggle('open');
-    arrow.classList.toggle('open');
+    // Legacy, kept for compatibility
+    toggleSettingsDropdown();
+}
+
+function toggleSettingsDropdown() {
+    const dropdown = document.getElementById('settings-dropdown');
+    dropdown.classList.toggle('open');
 }
 
 function toggleCompactMode() {
@@ -136,6 +181,14 @@ function toggleCompactMode() {
     document.querySelectorAll('.collapsible-section').forEach(el => {
         el.style.display = compactMode ? 'none' : '';
     });
+    // Hide player search bar and section label in compact mode
+    const opponentSection = document.getElementById('opponent-section');
+    if (opponentSection) {
+        const searchRow = opponentSection.querySelector('.player-search-row');
+        const sectionLabel = opponentSection.querySelector('.section-label');
+        if (searchRow) searchRow.style.display = compactMode ? 'none' : '';
+        if (sectionLabel) sectionLabel.style.display = compactMode ? 'none' : '';
+    }
     if (!compactMode) {
         renderPassiveIncomeSources();
     }
@@ -150,6 +203,36 @@ function minimizePanel() {
 
 function closePanel() {
     notifyPyQt('close');
+}
+
+function resetAllSettings() {
+    if (!confirm('Reset all settings to defaults? This clears hotkeys, modifiers, bookmarks, and food source.')) return;
+    resetHotkeys();
+    resetModifiers();
+    favorites.clear();
+    saveFavorites();
+}
+
+function resetHotkeys() {
+    localStorage.removeItem('aoe4_hotkeys');
+    hotkeys = { ...DEFAULT_HOTKEYS };
+    renderHotkeySettings();
+}
+
+function resetModifiers() {
+    document.getElementById('food-source').value = 'FARM';
+    foodSource = 'FARM';
+    loadCivModifiers();
+    recalculate();
+}
+
+function clearOpponentData() {
+    stopPlayerRefresh();
+    localStorage.removeItem('aoe4_player_name');
+    localStorage.removeItem('aoe4_player_profile_id');
+    document.getElementById('opponent-players').innerHTML = '';
+    const nameInput = document.getElementById('player-name-input');
+    if (nameInput) nameInput.value = '';
 }
 
 // Bridge to PyQt5
@@ -185,43 +268,56 @@ function loadCivModifiers() {
 
 function renderModifierToggles() {
     const mods = getCivModifiers(currentCiv);
+    const civName = CIVILIZATIONS[currentCiv] || currentCiv;
 
-    // Gathering rate toggles
-    const grContainer = document.getElementById('gathering-rate-toggles');
-    grContainer.innerHTML = '';
+    // Common group — all universal modifiers
+    const commonContainer = document.getElementById('common-modifiers-group');
+    commonContainer.innerHTML = '';
 
-    // Common gathering rate mods
-    Object.values(COMMON_GATHERING_RATE_MODIFIERS).forEach(mod => {
-        grContainer.appendChild(createModifierToggle(mod, 'gathering', false));
-    });
+    const commonGrMods = Object.values(COMMON_GATHERING_RATE_MODIFIERS);
+    const commonPsMods = Object.values(COMMON_PRODUCTION_SPEED_MODIFIERS);
+    const hasCommon = commonGrMods.length > 0 || commonPsMods.length > 0;
 
-    // Civ-specific gathering rate mods
-    Object.values(mods.gatheringRate).forEach(mod => {
-        const isDefault = (mods.defaults.gatheringRate || []).includes(mod.id);
-        grContainer.appendChild(createModifierToggle(mod, 'gathering', isDefault));
-    });
+    if (hasCommon) {
+        const label = document.createElement('div');
+        label.className = 'modifier-group-label';
+        label.textContent = 'Common';
+        commonContainer.appendChild(label);
+        commonGrMods.forEach(mod => {
+            commonContainer.appendChild(createModifierToggle(mod, 'gathering', false));
+        });
+        commonPsMods.forEach(mod => {
+            commonContainer.appendChild(createModifierToggle(mod, 'speed', false));
+        });
+    }
 
-    // Production speed toggles
-    const psContainer = document.getElementById('production-speed-toggles');
-    psContainer.innerHTML = '';
+    // Civ group — all civ-specific modifiers
+    const civContainer = document.getElementById('civ-modifiers-group');
+    civContainer.innerHTML = '';
 
-    Object.values(COMMON_PRODUCTION_SPEED_MODIFIERS).forEach(mod => {
-        psContainer.appendChild(createModifierToggle(mod, 'speed', false));
-    });
+    const civGrMods = Object.values(mods.gatheringRate);
+    const civPsMods = Object.values(mods.productionSpeed);
+    const civCostMods = Object.values(mods.costModifiers);
+    const hasCiv = civGrMods.length > 0 || civPsMods.length > 0 || civCostMods.length > 0;
 
-    Object.values(mods.productionSpeed).forEach(mod => {
-        const isDefault = (mods.defaults.productionSpeed || []).includes(mod.id);
-        psContainer.appendChild(createModifierToggle(mod, 'speed', isDefault));
-    });
-
-    // Cost modifier toggles
-    const cmContainer = document.getElementById('cost-modifier-toggles');
-    cmContainer.innerHTML = '';
-
-    Object.values(mods.costModifiers).forEach(mod => {
-        const isDefault = (mods.defaults.costModifiers || []).includes(mod.id);
-        cmContainer.appendChild(createModifierToggle(mod, 'cost', isDefault));
-    });
+    if (hasCiv) {
+        const label = document.createElement('div');
+        label.className = 'modifier-group-label';
+        label.textContent = civName;
+        civContainer.appendChild(label);
+        civGrMods.forEach(mod => {
+            const isDefault = (mods.defaults.gatheringRate || []).includes(mod.id);
+            civContainer.appendChild(createModifierToggle(mod, 'gathering', isDefault));
+        });
+        civPsMods.forEach(mod => {
+            const isDefault = (mods.defaults.productionSpeed || []).includes(mod.id);
+            civContainer.appendChild(createModifierToggle(mod, 'speed', isDefault));
+        });
+        civCostMods.forEach(mod => {
+            const isDefault = (mods.defaults.costModifiers || []).includes(mod.id);
+            civContainer.appendChild(createModifierToggle(mod, 'cost', isDefault));
+        });
+    }
 }
 
 function createModifierToggle(mod, type, defaultChecked) {
@@ -240,7 +336,28 @@ function createModifierToggle(mod, type, defaultChecked) {
     checkbox.dataset.modType = type;
 
     label.appendChild(checkbox);
+
+    const star = document.createElement('span');
+    star.className = 'popular-star' + (favorites.has(mod.id) ? ' active' : '');
+    star.textContent = favorites.has(mod.id) ? '\u2605' : '\u2606';
+    star.title = 'Click to bookmark';
+    star.onclick = (e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(mod.id); };
+    label.appendChild(star);
+
     label.appendChild(document.createTextNode(' ' + mod.description));
+    if (mod.source) {
+        const tag = document.createElement('span');
+        tag.className = 'modifier-source-tag';
+        tag.innerHTML = SOURCE_ICONS[mod.source] || mod.source;
+        tag.title = SOURCE_NAMES[mod.source] || mod.source;
+        label.appendChild(tag);
+    }
+    if (mod.age) {
+        const ageTag = document.createElement('span');
+        ageTag.className = 'modifier-age-tag age-' + mod.age;
+        ageTag.textContent = mod.age;
+        label.appendChild(ageTag);
+    }
     row.appendChild(label);
     return row;
 }
@@ -442,6 +559,8 @@ function startHotkeyCapture(actionId, btn) {
 
 // ---- Opponent Panel (aoe4world.com API) ----
 const AOE4_API = 'https://aoe4world.com/api/v0';
+let _playerRefreshTimer = null;
+const PLAYER_REFRESH_INTERVAL = 60000; // 60 seconds
 
 function toggleOpponentPanel() {
     const section = document.getElementById('opponent-section');
@@ -464,23 +583,39 @@ function onPlayerNameSubmit() {
     searchPlayer(name);
 }
 
-async function searchPlayer(name) {
+function startPlayerRefresh(name) {
+    stopPlayerRefresh();
+    _playerRefreshTimer = setInterval(() => {
+        searchPlayer(name, true);
+    }, PLAYER_REFRESH_INTERVAL);
+}
+
+function stopPlayerRefresh() {
+    if (_playerRefreshTimer) {
+        clearInterval(_playerRefreshTimer);
+        _playerRefreshTimer = null;
+    }
+}
+
+async function searchPlayer(name, silent) {
     const container = document.getElementById('opponent-players');
-    container.innerHTML = '<div class="empty-state">Searching...</div>';
+    if (!silent) container.innerHTML = '<div class="empty-state">Searching...</div>';
 
     try {
         const res = await fetch(`${AOE4_API}/players/search?query=${encodeURIComponent(name)}&limit=1`);
         const data = await res.json();
         if (!data.players || data.players.length === 0) {
-            container.innerHTML = '<div class="empty-state">Player not found</div>';
+            if (!silent) container.innerHTML = '<div class="empty-state">Player not found</div>';
             return;
         }
         const player = data.players[0];
         localStorage.setItem('aoe4_player_profile_id', player.profile_id);
         renderPlayerProfile(player);
         fetchLastGame(player.profile_id);
+        // Start auto-refresh
+        startPlayerRefresh(name);
     } catch(e) {
-        container.innerHTML = `<div class="empty-state">API error: ${e.message}</div>`;
+        if (!silent) container.innerHTML = `<div class="empty-state">API error: ${e.message}</div>`;
     }
 }
 
@@ -520,11 +655,47 @@ async function fetchLastGame(profileId) {
         const res = await fetch(`${AOE4_API}/players/${profileId}/games?limit=1`);
         const data = await res.json();
         if (!data.games || data.games.length === 0) return;
-        renderLastGame(data.games[0], profileId);
+        const game = data.games[0];
+        // Collect all player profile IDs from the game to fetch their stats
+        const allPlayerIds = [];
+        if (game.teams) {
+            game.teams.forEach(team => {
+                team.forEach(entry => {
+                    const p = entry.player || entry;
+                    if (p.profile_id) allPlayerIds.push(p.profile_id);
+                });
+            });
+        }
+        // Fetch stats for all players in parallel
+        const playerStats = {};
+        await Promise.all(allPlayerIds.map(async (pid) => {
+            try {
+                const r = await fetch(`${AOE4_API}/players/${pid}`);
+                const pData = await r.json();
+                playerStats[pid] = pData;
+            } catch(e) {}
+        }));
+        renderLastGame(game, profileId, playerStats);
     } catch(e) {}
 }
 
-function renderLastGame(game, myProfileId) {
+function getPlayerBestLeaderboard(playerData) {
+    // Search endpoint uses 'leaderboards', individual player endpoint uses 'modes'
+    const lb = playerData.leaderboards || playerData.modes || {};
+    const modeKeys = ['rm_1v1_elo', 'rm_solo', 'qm_1v1', 'rm_team'];
+    for (const m of modeKeys) {
+        if (lb[m] && lb[m].rating) return lb[m];
+        // Check previous seasons if current has no rating
+        if (lb[m] && lb[m].previous_seasons) {
+            for (const ps of lb[m].previous_seasons) {
+                if (ps.rating) return ps;
+            }
+        }
+    }
+    return null;
+}
+
+function renderLastGame(game, myProfileId, playerStats) {
     const container = document.getElementById('opponent-players');
 
     const mapDiv = document.createElement('div');
@@ -538,9 +709,10 @@ function renderLastGame(game, myProfileId) {
         teamDiv.className = 'opponent-team';
         team.forEach(entry => {
             const p = entry.player || entry;
+            const isMe = p.profile_id == myProfileId;
             const row = document.createElement('div');
-            row.className = 'opponent-player' + (p.profile_id == myProfileId ? ' is-me' : '');
-            // Map civ name to flag key (API returns lowercase like "malians", "knights_templar")
+            row.className = 'opponent-player' + (isMe ? ' is-me' : '');
+            // Map civ name to flag key
             const civLower = (p.civilization || '').toLowerCase().replace(/\s+/g, '_');
             const civKey = Object.keys(CIVILIZATIONS).find(k =>
                 k.toLowerCase() === civLower ||
@@ -549,10 +721,27 @@ function renderLastGame(game, myProfileId) {
             const flagSrc = civKey ? CIV_FLAGS[civKey] : '';
             const rating = p.mmr || p.rating || '';
             const result = p.result === 'win' ? 'W' : p.result === 'loss' ? 'L' : '';
+            const score = p.score != null ? p.score : '';
+
+            // Get win rate, wins, losses from fetched player stats
+            const stats = playerStats[p.profile_id];
+            let wrHtml = '';
+            if (stats) {
+                const best = getPlayerBestLeaderboard(stats);
+                if (best) {
+                    const wr = best.win_rate;
+                    const wrStr = wr > 1 ? wr.toFixed(1) : (wr * 100).toFixed(1);
+                    wrHtml = `<span class="opponent-winrate">${wrStr}%</span>` +
+                             `<span class="opponent-record"><span class="wins">${best.wins_count}W</span> <span class="losses">${best.losses_count}L</span></span>`;
+                }
+            }
+
             row.innerHTML = `
                 ${flagSrc ? `<img src="${flagSrc}" class="opponent-flag">` : ''}
                 <span class="opponent-name">${p.name || ''}</span>
                 <span class="opponent-rating">${rating}</span>
+                ${wrHtml}
+                ${score !== '' ? `<span class="opponent-score">${score}</span>` : ''}
                 <span class="opponent-result ${p.result || ''}">${result}</span>
             `;
             teamDiv.appendChild(row);
