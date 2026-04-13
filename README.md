@@ -1,12 +1,14 @@
 # AoE4 Production Overlay
 
-A floating, semi-transparent desktop overlay for Age of Empires IV that calculates villager requirements for continuous unit production.
+A floating, semi-transparent desktop overlay for Age of Empires IV that calculates villager requirements for continuous unit production. Designed for practice and training — use it alongside your games to improve resource allocation instincts and mental math for production planning.
+
+Updated for AoE4 Patch **15.4.8719** (Season 15, April 2026).
 
 **Web version**: [https://bdemo.github.io/aoe4-prod-overlay/](https://bdemo.github.io/aoe4-prod-overlay/)
 
 ## Features
 
-- **Villager Calculator** — Select units from the production queue and see exactly how many villagers you need on each resource (food, wood, gold, stone)
+- **Production Planning** — Select units from the production queue and instantly see how many villagers you need on each resource (food, wood, gold, stone)
 - **22 Civilizations** — Full support for all civilizations with civ-specific modifiers, gathering rate bonuses, production speed adjustments, and cost modifiers
 - **Passive Income** — Accounts for passive income sources like Relics, Sacred Sites, Pit Mines, Cattle Ranches, Pagodas, and more
 - **Modifier System** — Toggle common upgrades (Wheelbarrow, Horticulture, Double Broadax, etc.) and civ-specific techs with building source icons and age indicators
@@ -22,7 +24,7 @@ A floating, semi-transparent desktop overlay for Age of Empires IV that calculat
 
 ```
 +-----------------------------------+
-| [S][C][M][-][x]  AoE4 Prod Calc  |
+| [S][C][M][-][x] AoE4 Prod Overlay |
 +-----------------------------------+
 | VILLAGER REQUIREMENTS             |
 | Food  ████████████████  4.2       |
@@ -100,12 +102,6 @@ All shortcuts are customizable in Settings.
 - **Right-click tray icon** — Menu with show/hide, compact, click-through, opacity controls
 - **Double-click tray icon** — Restore window
 
-## Data Sources
-
-- Unit data and calculation logic ported from [aoe4-production-calculator](https://github.com/SichYuriy/aoe4-production-calculator)
-- Player statistics from [aoe4world.com](https://aoe4world.com) API
-- Civilization flags from [AoE4_Overlay](https://github.com/FluffyMaguro/AoE4_Overlay)
-
 ## Tech Stack
 
 - **Python + PyQt5** — Desktop window (transparent, frameless, always-on-top)
@@ -113,10 +109,22 @@ All shortcuts are customizable in Settings.
 - **Vanilla JavaScript** — Calculator logic and UI (no build step)
 - **PyInstaller** — Standalone executable packaging
 
+## Acknowledgments
+
+Special thanks to the open-source projects and communities that made this possible:
+
+- [aoe4-production-calculator](https://github.com/SichYuriy/aoe4-production-calculator) — Unit data and calculation logic
+- [aoe4world.com](https://aoe4world.com) — Player statistics API
+- [AoE4_Overlay](https://github.com/FluffyMaguro/AoE4_Overlay) — Civilization flags
+
 ## Support
 
-If you find this tool useful, buy me a coffee via Zelle: [3101ihs@gmail.com](mailto:3101ihs@gmail.com)
+If this overlay saved your eco from total collapse, consider mass-producing a coffee for me — no villagers required, just Zelle: [3101ihs@gmail.com](mailto:3101ihs@gmail.com)
 
 ## License
 
 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — You are free to share and adapt this software, provided you give appropriate credit and do not use it for commercial purposes.
+
+---
+
+Made by **SamJ**
