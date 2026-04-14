@@ -1143,6 +1143,17 @@ function ocrScanAll() {
     notifyPyQt('ocrScanAll', true);
 }
 
+function ocrReset() {
+    if (typeof IS_WEB !== 'undefined' && IS_WEB) return;
+    notifyPyQt('ocrReset', true);
+    // Clear Have inputs
+    ['food','wood','gold','stone'].forEach(r => {
+        const input = document.getElementById(`actual-${r}`);
+        if (input) input.value = 0;
+    });
+    onActualVillChange();
+}
+
 let _ocrAutoEnabled = localStorage.getItem('aoe4_ocr_auto') === 'true';
 let _ocrInterval = parseInt(localStorage.getItem('aoe4_ocr_interval')) || 1000;
 

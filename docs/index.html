@@ -92,13 +92,13 @@
             </div>
 
             <!-- Civilization Selector -->
-            <div class="section" id="section-civ">
+            <div class="section collapsible-section" id="section-civ">
                 <div class="section-label">Civilization</div>
                 <select id="civ-selector" onchange="onCivChange(this.value)"></select>
             </div>
 
             <!-- Unit Grid -->
-            <div class="section" id="section-units">
+            <div class="section collapsible-section" id="section-units">
                 <div class="section-label">Units</div>
                 <div id="unit-grid"></div>
             </div>
@@ -115,7 +115,7 @@
             </div>
 
             <!-- Modifiers -->
-            <div class="section" id="section-modifiers">
+            <div class="section collapsible-section" id="section-modifiers">
                 <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
                     Modifiers
                     <button class="clear-btn" onclick="resetModifiers()">Reset</button>
@@ -135,7 +135,7 @@
             </div>
 
             <!-- Passive Income Sources (civ-specific) -->
-            <div class="section" id="passive-income-section" style="display:none">
+            <div class="section collapsible-section" id="passive-income-section" style="display:none">
                 <div class="section-label">Passive Income Sources</div>
                 <div id="passive-income-sources"></div>
             </div>
