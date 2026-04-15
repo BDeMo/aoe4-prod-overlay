@@ -61,6 +61,9 @@
                     </label>
                 </div>
 
+                <div class="subsection-label">Preset Slots</div>
+                <div id="preset-slot-bindings"></div>
+
                 <div class="subsection-label">Data</div>
                 <div class="setting-row">
                     <button class="reset-btn" onclick="resetAllSettings()">Reset All Settings</button>
@@ -143,13 +146,19 @@
 
             <!-- Presets (named snapshots of the current build) -->
             <div class="section collapsible-section" id="section-presets">
-                <div class="section-label">Presets</div>
-                <div class="preset-save-row">
-                    <input type="text" id="preset-name-input" placeholder="Preset name..."
-                           maxlength="40" onkeydown="onPresetInputKey(event)">
-                    <button class="preset-save-btn" onclick="saveCurrentAsPreset()" title="Save current build as preset">Save</button>
+                <div class="section-label preset-section-label" onclick="togglePresetsBody()">
+                    <span>Presets</span>
+                    <span class="preset-body-toggle" title="Show/hide preset library">&#9662;</span>
                 </div>
-                <div id="preset-list"></div>
+                <div class="preset-slots-row" id="preset-slots"></div>
+                <div class="preset-body">
+                    <div class="preset-save-row">
+                        <input type="text" id="preset-name-input" placeholder="Preset name..."
+                               maxlength="40" onkeydown="onPresetInputKey(event)">
+                        <button class="preset-save-btn" onclick="saveCurrentAsPreset()" title="Save current build as preset">Save</button>
+                    </div>
+                    <div id="preset-list"></div>
+                </div>
             </div>
 
             <!-- Unit Grid -->

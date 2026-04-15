@@ -104,6 +104,105 @@ function savePresetsToStorage() {
 
 let presets = loadPresets();
 
+// 5 quick-access slot bindings: array of 5 preset names (or null)
+const PRESET_SLOT_COUNT = 5;
+function loadPresetSlots() {
+    try {
+        const saved = localStorage.getItem('aoe4_preset_slots');
+        if (saved) {
+            const arr = JSON.parse(saved);
+            if (Array.isArray(arr) && arr.length === PRESET_SLOT_COUNT) return arr;
+        }
+    } catch(e) {}
+    return new Array(PRESET_SLOT_COUNT).fill(null);
+}
+function savePresetSlotsToStorage() {
+    localStorage.setItem('aoe4_preset_slots', JSON.stringify(presetSlots));
+}
+let presetSlots = loadPresetSlots();
+
+// Collapsed state for the preset body (list + save row)
+let _presetBodyOpen = false;
+
+function togglePresetsBody() {
+    _presetBodyOpen = !_presetBodyOpen;
+    const section = document.getElementById('section-presets');
+    if (section) section.classList.toggle('body-open', _presetBodyOpen);
+}
+
+function renderPresetSlots() {
+    const container = document.getElementById('preset-slots');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 0; i < PRESET_SLOT_COUNT; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'preset-slot-btn';
+        btn.textContent = String(i + 1);
+        const name = presetSlots[i];
+        const exists = name && presets.some(p => p.name === name);
+        if (exists) {
+            btn.title = `Load: ${name}`;
+            btn.onclick = () => loadPreset(name);
+        } else {
+            btn.classList.add('empty');
+            btn.disabled = true;
+            btn.title = 'Empty slot — assign in settings';
+        }
+        container.appendChild(btn);
+    }
+}
+
+function assignPresetToSlot(slotIdx, name) {
+    presetSlots[slotIdx] = (name && name.length) ? name : null;
+    savePresetSlotsToStorage();
+    renderPresetSlots();
+    renderSlotSettings();
+}
+
+function renderSlotSettings() {
+    const container = document.getElementById('preset-slot-bindings');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 0; i < PRESET_SLOT_COUNT; i++) {
+        const row = document.createElement('div');
+        row.className = 'setting-row preset-slot-setting-row';
+
+        const tag = document.createElement('span');
+        tag.className = 'preset-slot-tag';
+        tag.textContent = 'Slot ' + (i + 1);
+        row.appendChild(tag);
+
+        const sel = document.createElement('select');
+        sel.className = 'preset-slot-select';
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '— empty —';
+        sel.appendChild(none);
+        presets.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.name;
+            opt.textContent = p.name;
+            if (presetSlots[i] === p.name) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        sel.onchange = () => assignPresetToSlot(i, sel.value);
+        row.appendChild(sel);
+        container.appendChild(row);
+    }
+}
+
+// When a preset is deleted or renamed, propagate to slot bindings.
+function syncSlotsAfterPresetChange(oldName, newName /* null on delete */) {
+    let dirty = false;
+    for (let i = 0; i < PRESET_SLOT_COUNT; i++) {
+        if (presetSlots[i] === oldName) {
+            presetSlots[i] = newName;
+            dirty = true;
+        }
+    }
+    if (dirty) savePresetSlotsToStorage();
+}
+
 function capturePreset(name) {
     return {
         name: name,
@@ -119,6 +218,13 @@ function capturePreset(name) {
     };
 }
 
+// Two-click confirmation state: name of the preset whose delete/overwrite
+// button is currently "armed", or null. Armed state auto-clears after 2.5s.
+let _pendingDelete = null;
+let _pendingOverwrite = null;
+// Name of the preset currently being renamed inline (or null).
+let _renamingPreset = null;
+
 function saveCurrentAsPreset() {
     const input = document.getElementById('preset-name-input');
     const raw = input ? input.value : '';
@@ -128,16 +234,47 @@ function saveCurrentAsPreset() {
         return;
     }
     const idx = presets.findIndex(p => p.name === name);
-    const preset = capturePreset(name);
     if (idx >= 0) {
-        if (!confirm(`Overwrite preset "${name}"?`)) return;
-        presets[idx] = preset;
+        // Two-click overwrite confirmation for Save with existing name
+        if (_pendingOverwrite !== name) {
+            _pendingOverwrite = name;
+            if (input) input.classList.add('confirm-armed');
+            setTimeout(() => {
+                if (_pendingOverwrite === name) {
+                    _pendingOverwrite = null;
+                    if (input) input.classList.remove('confirm-armed');
+                }
+            }, 2500);
+            return;
+        }
+        _pendingOverwrite = null;
+        if (input) input.classList.remove('confirm-armed');
+        presets[idx] = capturePreset(name);
     } else {
-        presets.push(preset);
+        presets.push(capturePreset(name));
+        // Auto-bind new preset to the first empty slot for convenience
+        const freeIdx = presetSlots.findIndex(s => !s || !presets.some(p => p.name === s));
+        if (freeIdx >= 0) {
+            presetSlots[freeIdx] = name;
+            savePresetSlotsToStorage();
+        }
     }
     savePresetsToStorage();
     if (input) input.value = '';
     renderPresets();
+    renderPresetSlots();
+    renderSlotSettings();
+}
+
+function updatePreset(name) {
+    // Overwrite an existing preset with the current state. No confirm —
+    // the dedicated Update button is explicit enough.
+    const idx = presets.findIndex(p => p.name === name);
+    if (idx < 0) return;
+    presets[idx] = capturePreset(name);
+    savePresetsToStorage();
+    renderPresets(name); // pass name so we can flash that row
+    // Slots reference the name only, so no change needed there
 }
 
 function loadPreset(name) {
@@ -176,29 +313,68 @@ function loadPreset(name) {
 }
 
 function deletePreset(name) {
-    if (!confirm(`Delete preset "${name}"?`)) return;
-    presets = presets.filter(p => p.name !== name);
-    savePresetsToStorage();
+    // Two-click delete: first click arms the button; second click within
+    // 2.5s actually deletes. Avoids relying on window.confirm() which is
+    // suppressed inside QWebEngineView.
+    if (_pendingDelete === name) {
+        _pendingDelete = null;
+        presets = presets.filter(p => p.name !== name);
+        savePresetsToStorage();
+        syncSlotsAfterPresetChange(name, null);
+        renderPresets();
+        renderPresetSlots();
+        renderSlotSettings();
+        return;
+    }
+    _pendingDelete = name;
     renderPresets();
+    setTimeout(() => {
+        if (_pendingDelete === name) {
+            _pendingDelete = null;
+            renderPresets();
+        }
+    }, 2500);
 }
 
-function renamePreset(oldName) {
+function commitRename(oldName, newName) {
     const p = presets.find(x => x.name === oldName);
     if (!p) return;
-    const next = prompt('Rename preset:', oldName);
-    if (!next) return;
-    const trimmed = next.trim();
-    if (!trimmed || trimmed === oldName) return;
+    const trimmed = (newName || '').trim();
+    _renamingPreset = null;
+    if (!trimmed || trimmed === oldName) {
+        renderPresets();
+        return;
+    }
     if (presets.some(x => x.name === trimmed)) {
-        alert(`A preset named "${trimmed}" already exists.`);
+        // Name collision — just revert silently. User can try again.
+        renderPresets();
         return;
     }
     p.name = trimmed;
     savePresetsToStorage();
+    syncSlotsAfterPresetChange(oldName, trimmed);
+    renderPresets();
+    renderPresetSlots();
+    renderSlotSettings();
+}
+
+function startRename(name) {
+    _renamingPreset = name;
+    _pendingDelete = null; // cancel any armed delete
+    renderPresets();
+    // Focus the input after render
+    setTimeout(() => {
+        const inp = document.querySelector('.preset-rename-input');
+        if (inp) { inp.focus(); inp.select(); }
+    }, 0);
+}
+
+function cancelRename() {
+    _renamingPreset = null;
     renderPresets();
 }
 
-function renderPresets() {
+function renderPresets(flashName) {
     const container = document.getElementById('preset-list');
     if (!container) return;
     container.innerHTML = '';
@@ -212,6 +388,27 @@ function renderPresets() {
     presets.forEach(p => {
         const row = document.createElement('div');
         row.className = 'preset-row';
+        if (flashName && flashName === p.name) {
+            row.classList.add('flash-updated');
+            setTimeout(() => row.classList.remove('flash-updated'), 800);
+        }
+
+        if (_renamingPreset === p.name) {
+            // Inline rename input
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'preset-rename-input';
+            input.value = p.name;
+            input.maxLength = 40;
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); commitRename(p.name, input.value); }
+                else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+            };
+            input.onblur = () => commitRename(p.name, input.value);
+            row.appendChild(input);
+            container.appendChild(row);
+            return;
+        }
 
         const name = document.createElement('span');
         name.className = 'preset-name';
@@ -221,17 +418,34 @@ function renderPresets() {
         name.onclick = () => loadPreset(p.name);
         row.appendChild(name);
 
+        // Update (overwrite with current state)
+        const updateBtn = document.createElement('button');
+        updateBtn.className = 'preset-btn';
+        updateBtn.innerHTML = '&#8635;'; // ↻
+        updateBtn.title = 'Update preset with current state';
+        updateBtn.onclick = (e) => { e.stopPropagation(); updatePreset(p.name); };
+        row.appendChild(updateBtn);
+
+        // Rename
         const renameBtn = document.createElement('button');
         renameBtn.className = 'preset-btn';
-        renameBtn.textContent = '\u270E'; // pencil
+        renameBtn.textContent = '\u270E'; // ✎
         renameBtn.title = 'Rename';
-        renameBtn.onclick = (e) => { e.stopPropagation(); renamePreset(p.name); };
+        renameBtn.onclick = (e) => { e.stopPropagation(); startRename(p.name); };
         row.appendChild(renameBtn);
 
+        // Delete (two-click)
         const delBtn = document.createElement('button');
         delBtn.className = 'preset-btn preset-del-btn';
-        delBtn.innerHTML = '&times;';
-        delBtn.title = 'Delete';
+        const armed = _pendingDelete === p.name;
+        if (armed) {
+            delBtn.classList.add('armed');
+            delBtn.textContent = '?';
+            delBtn.title = 'Click again to confirm delete';
+        } else {
+            delBtn.innerHTML = '&times;';
+            delBtn.title = 'Delete';
+        }
         delBtn.onclick = (e) => { e.stopPropagation(); deletePreset(p.name); };
         row.appendChild(delBtn);
 
@@ -269,6 +483,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initKeyboardShortcuts();
     renderHotkeySettings();
     renderPresets();
+    renderPresetSlots();
+    renderSlotSettings();
     // Restore opponent panel state
     if (localStorage.getItem('aoe4_show_opponent') === 'true') {
         document.getElementById('opponent-section').style.display = '';
