@@ -286,6 +286,8 @@ class OverlayWindow(QMainWindow):
             for js in self._pending_js:
                 self.web_view.page().runJavaScript(js)
             self._pending_js.clear()
+            # Push initial OCR preset list to JS
+            self._push_ocr_presets()
 
     def _run_js(self, js):
         """Run JavaScript, queuing if page not ready yet."""
@@ -479,6 +481,34 @@ class OverlayWindow(QMainWindow):
             self.scanner.reset_regions()
             if self._ocr_timer:
                 self._ocr_timer.stop()
+        elif act == 'ocrPresetSave':
+            name = str(action.get('data', '')).strip()
+            if name:
+                self.scanner.save_ocr_preset(name)
+                self._push_ocr_presets()
+        elif act == 'ocrPresetLoad':
+            name = str(action.get('data', '')).strip()
+            if self.scanner.load_ocr_preset(name):
+                self._ocr_scan_all()
+        elif act == 'ocrPresetDelete':
+            name = str(action.get('data', '')).strip()
+            if self.scanner.delete_ocr_preset(name):
+                self._push_ocr_presets()
+        elif act == 'ocrPresetSetDefault':
+            name = action.get('data', '')
+            if name == '' or name is None:
+                self.scanner.set_default_ocr_preset(None)
+            else:
+                self.scanner.set_default_ocr_preset(str(name).strip())
+            self._push_ocr_presets()
+        elif act == 'ocrPresetList':
+            self._push_ocr_presets()
+
+    def _push_ocr_presets(self):
+        import json as _json
+        info = self.scanner.list_ocr_presets()
+        payload = _json.dumps(info)
+        self._run_js(f"onOCRPresetList({payload});")
 
     def _apply_compact_mode(self, compact):
         self._compact_mode = compact

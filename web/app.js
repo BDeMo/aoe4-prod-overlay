@@ -567,6 +567,9 @@ document.addEventListener('DOMContentLoaded', () => {
         notifyPyQt('ocrAutoToggle', true);
         notifyPyQt('ocrSetInterval', _ocrInterval);
     }
+
+    // Request OCR preset list from Python
+    notifyPyQt('ocrPresetList', '');
 });
 
 // ---- Font scaling based on window width ----
@@ -1627,6 +1630,73 @@ function setOCRInterval(ms) {
     _ocrInterval = parseInt(ms) || 1000;
     localStorage.setItem('aoe4_ocr_interval', _ocrInterval);
     notifyPyQt('ocrSetInterval', _ocrInterval);
+}
+
+// ---- OCR Position Presets ----
+let _ocrPresetState = { presets: [], default: null };
+
+function onOCRPresetList(info) {
+    _ocrPresetState = info || { presets: [], default: null };
+    const sel = document.getElementById('ocr-preset-select');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = _ocrPresetState.presets.length
+        ? '-- select --' : '(no presets saved)';
+    sel.appendChild(placeholder);
+    for (const name of _ocrPresetState.presets) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+    }
+    // Restore prior selection, or fall back to default
+    if (_ocrPresetState.presets.includes(prev)) {
+        sel.value = prev;
+    } else if (_ocrPresetState.default) {
+        sel.value = _ocrPresetState.default;
+    }
+    onOCRPresetSelectChange();
+}
+
+function onOCRPresetSelectChange() {
+    const sel = document.getElementById('ocr-preset-select');
+    const cb = document.getElementById('ocr-preset-default');
+    if (!sel || !cb) return;
+    const name = sel.value;
+    cb.disabled = !name;
+    cb.checked = !!name && name === _ocrPresetState.default;
+}
+
+function onOCRPresetSave() {
+    const input = document.getElementById('ocr-preset-name-input');
+    if (!input) return;
+    const name = (input.value || '').trim();
+    if (!name) return;
+    notifyPyQt('ocrPresetSave', name);
+    input.value = '';
+}
+
+function onOCRPresetLoad() {
+    const sel = document.getElementById('ocr-preset-select');
+    if (!sel || !sel.value) return;
+    notifyPyQt('ocrPresetLoad', sel.value);
+}
+
+function onOCRPresetDelete() {
+    const sel = document.getElementById('ocr-preset-select');
+    if (!sel || !sel.value) return;
+    notifyPyQt('ocrPresetDelete', sel.value);
+}
+
+function onOCRPresetDefaultChange() {
+    const sel = document.getElementById('ocr-preset-select');
+    const cb = document.getElementById('ocr-preset-default');
+    if (!sel || !cb) return;
+    // Checked → set this as default; unchecked → clear default
+    notifyPyQt('ocrPresetSetDefault', cb.checked ? sel.value : '');
 }
 
 function onOCRResult(resource, value, confidence, previewB64) {

@@ -61,6 +61,24 @@
                     </label>
                 </div>
 
+                <div class="subsection-label">OCR Position Presets</div>
+                <div class="setting-row ocr-preset-row">
+                    <select id="ocr-preset-select" onchange="onOCRPresetSelectChange()"></select>
+                    <button class="clear-btn" onclick="onOCRPresetLoad()" title="Load selected OCR region">Load</button>
+                    <button class="clear-btn" onclick="onOCRPresetDelete()" title="Delete selected OCR preset">✕</button>
+                </div>
+                <div class="setting-row ocr-preset-row">
+                    <label title="Automatically apply this preset on startup" style="display:flex;align-items:center;gap:4px">
+                        <input type="checkbox" id="ocr-preset-default" onchange="onOCRPresetDefaultChange()">
+                        Default on startup
+                    </label>
+                </div>
+                <div class="setting-row ocr-preset-row">
+                    <input type="text" id="ocr-preset-name-input" placeholder="Preset name..."
+                           maxlength="40" onkeydown="if(event.key==='Enter')onOCRPresetSave()">
+                    <button class="preset-save-btn" onclick="onOCRPresetSave()" title="Save current OCR region as preset">Save</button>
+                </div>
+
                 <div class="subsection-label">Preset Slots</div>
                 <div id="preset-slot-bindings"></div>
 

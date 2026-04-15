@@ -49,6 +49,10 @@ class ScreenScanner:
         self._all_region = None       # (x, y, w, h) covering all 4 rows
         self._single_regions = {}     # {'food': (x,y,w,h), ...}
         self._ort_session = None
+        # Named OCR position presets:
+        # {name: {'all_region': (x,y,w,h)|None, 'single_regions': {res:(x,y,w,h)}}}
+        self._presets = {}
+        self._default_preset = None   # name of preset to auto-load on startup
 
         if HAS_DEPS:
             self._sct = mss.mss()
@@ -99,6 +103,27 @@ class ScreenScanner:
                             k: tuple(v) for k, v in sr.items()
                             if k in RESOURCES and len(v) == 4
                         }
+                    presets = data.get('presets')
+                    if isinstance(presets, dict):
+                        for name, p in presets.items():
+                            if not isinstance(p, dict):
+                                continue
+                            parsed = {'all_region': None, 'single_regions': {}}
+                            par = p.get('all_region')
+                            if par and len(par) == 4:
+                                parsed['all_region'] = tuple(par)
+                            psr = p.get('single_regions')
+                            if isinstance(psr, dict):
+                                parsed['single_regions'] = {
+                                    k: tuple(v) for k, v in psr.items()
+                                    if k in RESOURCES and len(v) == 4
+                                }
+                            self._presets[str(name)] = parsed
+                    dp = data.get('default_preset')
+                    if isinstance(dp, str) and dp in self._presets:
+                        self._default_preset = dp
+                        # Auto-load default preset as current region on startup
+                        self._apply_preset_data(self._presets[dp])
         except Exception:
             pass
 
@@ -112,9 +137,67 @@ class ScreenScanner:
                     'single_regions': {
                         k: list(v) for k, v in self._single_regions.items()
                     } if self._single_regions else None,
+                    'presets': {
+                        name: {
+                            'all_region': list(p['all_region']) if p.get('all_region') else None,
+                            'single_regions': {
+                                k: list(v) for k, v in p.get('single_regions', {}).items()
+                            },
+                        } for name, p in self._presets.items()
+                    },
+                    'default_preset': self._default_preset,
                 }, f, indent=2)
         except Exception:
             pass
+
+    # ---- Named OCR Presets ----
+
+    def _apply_preset_data(self, p):
+        self._all_region = p.get('all_region') or None
+        self._single_regions = dict(p.get('single_regions') or {})
+
+    def save_ocr_preset(self, name):
+        name = str(name).strip()
+        if not name:
+            return False
+        self._presets[name] = {
+            'all_region': self._all_region,
+            'single_regions': dict(self._single_regions),
+        }
+        self.save_config()
+        return True
+
+    def load_ocr_preset(self, name):
+        if name not in self._presets:
+            return False
+        self._apply_preset_data(self._presets[name])
+        self.save_config()
+        return True
+
+    def delete_ocr_preset(self, name):
+        if name in self._presets:
+            del self._presets[name]
+            if self._default_preset == name:
+                self._default_preset = None
+            self.save_config()
+            return True
+        return False
+
+    def set_default_ocr_preset(self, name):
+        if name is None or name == '':
+            self._default_preset = None
+        elif name in self._presets:
+            self._default_preset = name
+        else:
+            return False
+        self.save_config()
+        return True
+
+    def list_ocr_presets(self):
+        return {
+            'presets': sorted(self._presets.keys()),
+            'default': self._default_preset,
+        }
 
     def set_region(self, x, y, w, h):
         self._all_region = (int(x), int(y), int(w), int(h))
