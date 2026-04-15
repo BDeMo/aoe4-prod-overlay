@@ -1038,6 +1038,24 @@ function setUnitCount(unitId, value) {
 }
 
 // ---- Selected Units Display ----
+// Compute how many villagers are needed to sustain continuous production
+// of `count` copies of `unit` under the current modifiers and food source.
+// Returns { total, food, wood, gold, stone } (each a number of villagers).
+function computeUnitVillagerCost(unit, count) {
+    const rates = gatheringRatesService.getGatheringRates(
+        foodSource, activeGatheringMods, []
+    );
+    const perMin = calculator._calcUnitCostPerMinute(
+        unit, count, activeProductionSpeedMods, activeCostMods, {}
+    );
+    const v = ResourcesAmount.ofObj(perMin).divideByGatheringRate(rates);
+    const food  = Math.max(0, v.foodVillagers);
+    const wood  = Math.max(0, v.woodVillagers);
+    const gold  = Math.max(0, v.goldVillagers);
+    const stone = Math.max(0, v.stoneVillagers);
+    return { total: food + wood + gold + stone, food, wood, gold, stone };
+}
+
 function renderSelectedUnits() {
     const container = document.getElementById('selected-units');
     const ids = Object.keys(selectedUnits);
@@ -1061,7 +1079,21 @@ function renderSelectedUnits() {
             ? `<img src="${iconPath}" class="unit-list-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="${unit.name}"><div class="unit-abbrev" style="display:none">${getAbbrev(unit.name)}</div>`
             : `<div class="unit-abbrev">${getAbbrev(unit.name)}</div>`;
 
+        // Per-unit villager cost (scaled by current queue count) shown on the left.
+        // Tooltip: full per-resource breakdown.
+        const v = computeUnitVillagerCost(unit, count);
+        const parts = [];
+        if (v.food  >= 0.05) parts.push(`F ${v.food.toFixed(1)}`);
+        if (v.wood  >= 0.05) parts.push(`W ${v.wood.toFixed(1)}`);
+        if (v.gold  >= 0.05) parts.push(`G ${v.gold.toFixed(1)}`);
+        if (v.stone >= 0.05) parts.push(`S ${v.stone.toFixed(1)}`);
+        const tooltip = parts.length
+            ? `Villagers needed: ${v.total.toFixed(1)}\n${parts.join('  ')}`
+            : 'No villagers needed';
+        const costHtml = `<span class="unit-vill-cost" title="${tooltip}">${v.total.toFixed(1)}<span class="unit-vill-cost-label">v</span></span>`;
+
         row.innerHTML = `
+            ${costHtml}
             ${iconHtml}
             <span class="unit-name">${unit.name}</span>
             <div class="counter-controls">

@@ -263,6 +263,28 @@ html, body {
     text-overflow: ellipsis;
 }
 
+/* Villager cost badge on the left of each queue row */
+.selected-unit .unit-vill-cost {
+    min-width: 34px;
+    padding: 2px 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent, #ffb84d);
+    background: rgba(255,184,77,0.10);
+    border: 1px solid rgba(255,184,77,0.35);
+    border-radius: 3px;
+    text-align: center;
+    flex-shrink: 0;
+    line-height: 1.2;
+    cursor: help;
+}
+.selected-unit .unit-vill-cost-label {
+    font-size: 9px;
+    font-weight: 500;
+    opacity: 0.75;
+    margin-left: 1px;
+}
+
 .selected-unit .unit-abbrev {
     width: 24px;
     height: 24px;
