@@ -88,6 +88,163 @@ function toggleFavorite(modId) {
     renderModifierToggles();
 }
 
+// ---- Presets (named snapshots of civ+units+mods+food+passive) ----
+function loadPresets() {
+    try {
+        const saved = localStorage.getItem('aoe4_presets');
+        if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return [];
+}
+
+function savePresetsToStorage() {
+    localStorage.setItem('aoe4_presets', JSON.stringify(presets));
+}
+
+let presets = loadPresets();
+
+function capturePreset(name) {
+    return {
+        name: name,
+        civ: currentCiv,
+        foodSource: foodSource,
+        selectedUnits: {...selectedUnits},
+        modIds: {
+            gathering: activeGatheringMods.map(m => m.id),
+            speed: activeProductionSpeedMods.map(m => m.id),
+            cost: activeCostMods.map(m => m.id),
+        },
+        passiveIncomeSources: {...passiveIncomeSources},
+    };
+}
+
+function saveCurrentAsPreset() {
+    const input = document.getElementById('preset-name-input');
+    const raw = input ? input.value : '';
+    const name = (raw || '').trim();
+    if (!name) {
+        if (input) input.focus();
+        return;
+    }
+    const idx = presets.findIndex(p => p.name === name);
+    const preset = capturePreset(name);
+    if (idx >= 0) {
+        if (!confirm(`Overwrite preset "${name}"?`)) return;
+        presets[idx] = preset;
+    } else {
+        presets.push(preset);
+    }
+    savePresetsToStorage();
+    if (input) input.value = '';
+    renderPresets();
+}
+
+function loadPreset(name) {
+    const preset = presets.find(p => p.name === name);
+    if (!preset) return;
+
+    currentCiv = preset.civ;
+    const civSel = document.getElementById('civ-selector');
+    if (civSel) civSel.value = preset.civ;
+
+    foodSource = preset.foodSource || 'FARM';
+    const fsSel = document.getElementById('food-source');
+    if (fsSel) fsSel.value = foodSource;
+
+    selectedUnits = {...(preset.selectedUnits || {})};
+    passiveIncomeSources = {...(preset.passiveIncomeSources || {})};
+
+    // Reload modifier toggles for this civ, then override their checked state
+    loadCivModifiers();
+    const ids = new Set([
+        ...((preset.modIds && preset.modIds.gathering) || []),
+        ...((preset.modIds && preset.modIds.speed) || []),
+        ...((preset.modIds && preset.modIds.cost) || []),
+    ]);
+    document.querySelectorAll(
+        '#common-modifiers-group input[type=checkbox], #civ-modifiers-group input[type=checkbox]'
+    ).forEach(cb => {
+        cb.checked = ids.has(cb.dataset.modId);
+    });
+    updateActiveModifiers();
+
+    renderUnitGrid();
+    renderSelectedUnits();
+    renderPassiveIncomeSources();
+    recalculate();
+}
+
+function deletePreset(name) {
+    if (!confirm(`Delete preset "${name}"?`)) return;
+    presets = presets.filter(p => p.name !== name);
+    savePresetsToStorage();
+    renderPresets();
+}
+
+function renamePreset(oldName) {
+    const p = presets.find(x => x.name === oldName);
+    if (!p) return;
+    const next = prompt('Rename preset:', oldName);
+    if (!next) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === oldName) return;
+    if (presets.some(x => x.name === trimmed)) {
+        alert(`A preset named "${trimmed}" already exists.`);
+        return;
+    }
+    p.name = trimmed;
+    savePresetsToStorage();
+    renderPresets();
+}
+
+function renderPresets() {
+    const container = document.getElementById('preset-list');
+    if (!container) return;
+    container.innerHTML = '';
+    if (presets.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'No saved presets';
+        container.appendChild(empty);
+        return;
+    }
+    presets.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'preset-row';
+
+        const name = document.createElement('span');
+        name.className = 'preset-name';
+        name.textContent = p.name;
+        const civName = (typeof CIVILIZATIONS !== 'undefined' && CIVILIZATIONS[p.civ]) || p.civ;
+        name.title = `${civName} — click to load`;
+        name.onclick = () => loadPreset(p.name);
+        row.appendChild(name);
+
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'preset-btn';
+        renameBtn.textContent = '\u270E'; // pencil
+        renameBtn.title = 'Rename';
+        renameBtn.onclick = (e) => { e.stopPropagation(); renamePreset(p.name); };
+        row.appendChild(renameBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'preset-btn preset-del-btn';
+        delBtn.innerHTML = '&times;';
+        delBtn.title = 'Delete';
+        delBtn.onclick = (e) => { e.stopPropagation(); deletePreset(p.name); };
+        row.appendChild(delBtn);
+
+        container.appendChild(row);
+    });
+}
+
+function onPresetInputKey(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        saveCurrentAsPreset();
+    }
+}
+
 function hotkeyToString(hk) {
     let parts = [];
     if (hk.ctrl) parts.push('Ctrl');
@@ -110,6 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     onCivChange(currentCiv);
     initKeyboardShortcuts();
     renderHotkeySettings();
+    renderPresets();
     // Restore opponent panel state
     if (localStorage.getItem('aoe4_show_opponent') === 'true') {
         document.getElementById('opponent-section').style.display = '';

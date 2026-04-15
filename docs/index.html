@@ -97,6 +97,17 @@
                 <select id="civ-selector" onchange="onCivChange(this.value)"></select>
             </div>
 
+            <!-- Presets (named snapshots of the current build) -->
+            <div class="section collapsible-section" id="section-presets">
+                <div class="section-label">Presets</div>
+                <div class="preset-save-row">
+                    <input type="text" id="preset-name-input" placeholder="Preset name..."
+                           maxlength="40" onkeydown="onPresetInputKey(event)">
+                    <button class="preset-save-btn" onclick="saveCurrentAsPreset()" title="Save current build as preset">Save</button>
+                </div>
+                <div id="preset-list"></div>
+            </div>
+
             <!-- Unit Grid -->
             <div class="section collapsible-section" id="section-units">
                 <div class="section-label">Units</div>

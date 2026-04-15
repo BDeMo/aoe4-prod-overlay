@@ -980,6 +980,84 @@ html, body {
     font-style: italic;
 }
 
+/* ---- Presets ---- */
+.preset-save-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.preset-save-row input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-input, #1e1e1e);
+    border: 1px solid var(--border, #3a3a3a);
+    color: var(--text, #e0e0e0);
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 3px;
+    outline: none;
+}
+.preset-save-row input[type="text"]:focus {
+    border-color: var(--accent, #ffb84d);
+}
+.preset-save-btn {
+    background: var(--accent, #ffb84d);
+    color: #1a1a1a;
+    border: none;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.preset-save-btn:hover { filter: brightness(1.1); }
+
+#preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.preset-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    background: var(--bg-row, rgba(255,255,255,0.04));
+    border-radius: 3px;
+    transition: background 0.12s;
+}
+.preset-row:hover { background: rgba(255,184,77,0.08); }
+.preset-name {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text, #e0e0e0);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 0;
+}
+.preset-name:hover { color: var(--accent, #ffb84d); }
+.preset-btn {
+    background: transparent;
+    border: 1px solid var(--border, #3a3a3a);
+    color: var(--text-muted, #888);
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.preset-btn:hover { color: var(--accent, #ffb84d); border-color: var(--accent, #ffb84d); }
+.preset-del-btn:hover { color: #e85050; border-color: #e85050; }
+
 /* ---- Resize Handle ---- */
 #resize-handle {
     position: absolute;
