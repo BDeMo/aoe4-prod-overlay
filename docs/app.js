@@ -104,22 +104,61 @@ function savePresetsToStorage() {
 
 let presets = loadPresets();
 
-// 5 quick-access slot bindings: array of 5 preset names (or null)
+// Slot bindings are PER CIV: { civKey: [5 preset names or null], ... }
+// Preset identity is (civ, name). Names only need to be unique within a civ.
 const PRESET_SLOT_COUNT = 5;
+
 function loadPresetSlots() {
     try {
         const saved = localStorage.getItem('aoe4_preset_slots');
         if (saved) {
-            const arr = JSON.parse(saved);
-            if (Array.isArray(arr) && arr.length === PRESET_SLOT_COUNT) return arr;
+            const data = JSON.parse(saved);
+            // New format: object keyed by civ
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                return data;
+            }
+            // Legacy format: flat array of 5. Migrate by attaching to
+            // whichever civ those preset names currently belong to.
+            if (Array.isArray(data)) {
+                const migrated = {};
+                data.forEach((name) => {
+                    if (!name) return;
+                    const p = presets.find(x => x.name === name);
+                    if (!p) return;
+                    if (!migrated[p.civ]) {
+                        migrated[p.civ] = new Array(PRESET_SLOT_COUNT).fill(null);
+                    }
+                    // Place in first free slot of that civ's row
+                    const free = migrated[p.civ].indexOf(null);
+                    if (free >= 0) migrated[p.civ][free] = name;
+                });
+                return migrated;
+            }
         }
     } catch(e) {}
-    return new Array(PRESET_SLOT_COUNT).fill(null);
+    return {};
 }
 function savePresetSlotsToStorage() {
     localStorage.setItem('aoe4_preset_slots', JSON.stringify(presetSlots));
 }
 let presetSlots = loadPresetSlots();
+
+function getCivSlots(civ) {
+    if (!presetSlots[civ]) {
+        presetSlots[civ] = new Array(PRESET_SLOT_COUNT).fill(null);
+    }
+    return presetSlots[civ];
+}
+
+// Find a preset scoped to a specific civilization
+function findPreset(civ, name) {
+    return presets.find(p => p.civ === civ && p.name === name);
+}
+
+// Return presets belonging to the given civ
+function presetsForCiv(civ) {
+    return presets.filter(p => p.civ === civ);
+}
 
 // Collapsed state for the preset body (list + save row)
 let _presetBodyOpen = false;
@@ -134,12 +173,13 @@ function renderPresetSlots() {
     const container = document.getElementById('preset-slots');
     if (!container) return;
     container.innerHTML = '';
+    const slots = getCivSlots(currentCiv);
     for (let i = 0; i < PRESET_SLOT_COUNT; i++) {
         const btn = document.createElement('button');
         btn.className = 'preset-slot-btn';
         btn.textContent = String(i + 1);
-        const name = presetSlots[i];
-        const exists = name && presets.some(p => p.name === name);
+        const name = slots[i];
+        const exists = !!(name && findPreset(currentCiv, name));
         if (exists) {
             btn.title = `Load: ${name}`;
             btn.onclick = () => loadPreset(name);
@@ -153,7 +193,8 @@ function renderPresetSlots() {
 }
 
 function assignPresetToSlot(slotIdx, name) {
-    presetSlots[slotIdx] = (name && name.length) ? name : null;
+    const slots = getCivSlots(currentCiv);
+    slots[slotIdx] = (name && name.length) ? name : null;
     savePresetSlotsToStorage();
     renderPresetSlots();
     renderSlotSettings();
@@ -163,6 +204,8 @@ function renderSlotSettings() {
     const container = document.getElementById('preset-slot-bindings');
     if (!container) return;
     container.innerHTML = '';
+    const slots = getCivSlots(currentCiv);
+    const civPresets = presetsForCiv(currentCiv);
     for (let i = 0; i < PRESET_SLOT_COUNT; i++) {
         const row = document.createElement('div');
         row.className = 'setting-row preset-slot-setting-row';
@@ -178,11 +221,11 @@ function renderSlotSettings() {
         none.value = '';
         none.textContent = '— empty —';
         sel.appendChild(none);
-        presets.forEach(p => {
+        civPresets.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.name;
             opt.textContent = p.name;
-            if (presetSlots[i] === p.name) opt.selected = true;
+            if (slots[i] === p.name) opt.selected = true;
             sel.appendChild(opt);
         });
         sel.onchange = () => assignPresetToSlot(i, sel.value);
@@ -191,12 +234,14 @@ function renderSlotSettings() {
     }
 }
 
-// When a preset is deleted or renamed, propagate to slot bindings.
-function syncSlotsAfterPresetChange(oldName, newName /* null on delete */) {
+// When a preset is deleted or renamed, propagate to slot bindings
+// for that civ. (Other civs' slots are untouched.)
+function syncSlotsAfterPresetChange(civ, oldName, newName /* null on delete */) {
+    const slots = getCivSlots(civ);
     let dirty = false;
     for (let i = 0; i < PRESET_SLOT_COUNT; i++) {
-        if (presetSlots[i] === oldName) {
-            presetSlots[i] = newName;
+        if (slots[i] === oldName) {
+            slots[i] = newName;
             dirty = true;
         }
     }
@@ -233,7 +278,8 @@ function saveCurrentAsPreset() {
         if (input) input.focus();
         return;
     }
-    const idx = presets.findIndex(p => p.name === name);
+    // Name uniqueness is scoped to the current civ
+    const idx = presets.findIndex(p => p.civ === currentCiv && p.name === name);
     if (idx >= 0) {
         // Two-click overwrite confirmation for Save with existing name
         if (_pendingOverwrite !== name) {
@@ -252,10 +298,11 @@ function saveCurrentAsPreset() {
         presets[idx] = capturePreset(name);
     } else {
         presets.push(capturePreset(name));
-        // Auto-bind new preset to the first empty slot for convenience
-        const freeIdx = presetSlots.findIndex(s => !s || !presets.some(p => p.name === s));
+        // Auto-bind new preset to the first empty slot for THIS civ
+        const slots = getCivSlots(currentCiv);
+        const freeIdx = slots.findIndex(s => !s || !findPreset(currentCiv, s));
         if (freeIdx >= 0) {
-            presetSlots[freeIdx] = name;
+            slots[freeIdx] = name;
             savePresetSlotsToStorage();
         }
     }
@@ -267,18 +314,18 @@ function saveCurrentAsPreset() {
 }
 
 function updatePreset(name) {
-    // Overwrite an existing preset with the current state. No confirm —
-    // the dedicated Update button is explicit enough.
-    const idx = presets.findIndex(p => p.name === name);
+    // Overwrite an existing preset (in the current civ) with the current state.
+    const idx = presets.findIndex(p => p.civ === currentCiv && p.name === name);
     if (idx < 0) return;
     presets[idx] = capturePreset(name);
     savePresetsToStorage();
     renderPresets(name); // pass name so we can flash that row
-    // Slots reference the name only, so no change needed there
 }
 
 function loadPreset(name) {
-    const preset = presets.find(p => p.name === name);
+    // Presets are scoped to a civ; look up within the current civ first,
+    // then fall back to any match (e.g. coming from a cross-civ link).
+    const preset = findPreset(currentCiv, name) || presets.find(p => p.name === name);
     if (!preset) return;
 
     currentCiv = preset.civ;
@@ -318,9 +365,10 @@ function deletePreset(name) {
     // suppressed inside QWebEngineView.
     if (_pendingDelete === name) {
         _pendingDelete = null;
-        presets = presets.filter(p => p.name !== name);
+        // Only remove the preset from the current civ
+        presets = presets.filter(p => !(p.civ === currentCiv && p.name === name));
         savePresetsToStorage();
-        syncSlotsAfterPresetChange(name, null);
+        syncSlotsAfterPresetChange(currentCiv, name, null);
         renderPresets();
         renderPresetSlots();
         renderSlotSettings();
@@ -337,7 +385,7 @@ function deletePreset(name) {
 }
 
 function commitRename(oldName, newName) {
-    const p = presets.find(x => x.name === oldName);
+    const p = presets.find(x => x.civ === currentCiv && x.name === oldName);
     if (!p) return;
     const trimmed = (newName || '').trim();
     _renamingPreset = null;
@@ -345,14 +393,14 @@ function commitRename(oldName, newName) {
         renderPresets();
         return;
     }
-    if (presets.some(x => x.name === trimmed)) {
-        // Name collision — just revert silently. User can try again.
+    // Collision check is scoped to the same civ
+    if (presets.some(x => x.civ === currentCiv && x.name === trimmed)) {
         renderPresets();
         return;
     }
     p.name = trimmed;
     savePresetsToStorage();
-    syncSlotsAfterPresetChange(oldName, trimmed);
+    syncSlotsAfterPresetChange(currentCiv, oldName, trimmed);
     renderPresets();
     renderPresetSlots();
     renderSlotSettings();
@@ -378,14 +426,16 @@ function renderPresets(flashName) {
     const container = document.getElementById('preset-list');
     if (!container) return;
     container.innerHTML = '';
-    if (presets.length === 0) {
+    const civPresets = presetsForCiv(currentCiv);
+    if (civPresets.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';
-        empty.textContent = 'No saved presets';
+        const civName = (typeof CIVILIZATIONS !== 'undefined' && CIVILIZATIONS[currentCiv]) || currentCiv;
+        empty.textContent = `No saved presets for ${civName}`;
         container.appendChild(empty);
         return;
     }
-    presets.forEach(p => {
+    civPresets.forEach(p => {
         const row = document.createElement('div');
         row.className = 'preset-row';
         if (flashName && flashName === p.name) {
@@ -662,6 +712,10 @@ function onCivChange(civ) {
     renderUnitGrid();
     renderSelectedUnits();
     renderPassiveIncomeSources();
+    // Presets and slots are scoped per civ — refresh all three.
+    renderPresets();
+    renderPresetSlots();
+    renderSlotSettings();
     recalculate();
 }
 
