@@ -1492,16 +1492,15 @@ function recalculate() {
         foodSource, activeGatheringMods, []
     );
 
-    // Calculate passive income from civ-specific sources
-    const passiveIncome = getPassiveIncome();
-
-    // Calculate
+    // NEED column shows the raw villager COST — do NOT pre-subtract passive
+    // income here. Passive is shown separately in the PAS column, and the
+    // ± column does the real (HAVE + PAS) - COST tuning math.
     const result = calculator.calculateProductionVillagerCost(
         gatheringRates,
         selectedUnits,
         activeProductionSpeedMods,
         activeCostMods,
-        passiveIncome,
+        new ResourcesAmount(), // passive income — excluded from NEED
         new ResourcesAmount(), // dynamic passive income
         [], // limited food sources
         [], // passive income from gathering villagers
